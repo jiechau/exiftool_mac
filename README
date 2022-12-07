@@ -1,4 +1,22 @@
-init
+RUN
+===
+
+/Users/jiechau/life_codes/exiftool_mac/go.sh >> /Volumes/data/jiechau/_life_logs/exiftool_mac/go.log 2>&1
+
+
+problems
+========
+
+cron operation not permitted
+https://apple.stackexchange.com/questions/378553/crontab-operation-not-permitted
+add /usr/sbin/cron to full access disk
+
+exiftool not found:
+add export PATH=/usr/local/bin:$PATH to go.sh
+
+
+README
+======
 
 exif tools macos:
 https://exiftool.org/

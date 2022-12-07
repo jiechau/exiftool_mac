@@ -1,6 +1,7 @@
 #!/bin/bash
 
 echo $(date +"%Y-%m-%d %H:%M:%S") 'start_go.sh'
+export PATH=/usr/local/bin:$PATH
 cd /Users/jiechau/life_codes/exiftool_mac
 echo "$PWD"
 
@@ -117,6 +118,7 @@ fi
 # end
 echo "ddone"
 echo $(date +"%Y-%m-%d %H:%M:%S") 'end_go.sh'
+echo ""
 
 
 
