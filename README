@@ -1,1 +1,21 @@
 init
+
+exif tools macos:
+https://exiftool.org/
+
+xnview
+https://www.xnview.com/en/nconvert/
+
+ImageMagick
+https://imagemagick.org/script/download.php#macosx
+
+# auto rotate
+# not sure if we need to do this
+#mogrify -auto-orient ${TMPDIR}/*.jpg
+#mogrify -auto-orient ${TMPDIR}/*.png
+
+exiftool extractembedded
+exiftool -ee 
+
+
+
