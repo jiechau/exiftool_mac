@@ -2,12 +2,15 @@ init
 
 exif tools macos:
 https://exiftool.org/
+(download dmg)
 
 xnview
 https://www.xnview.com/en/nconvert/
+(download dmg)
 
 ImageMagick
 https://imagemagick.org/script/download.php#macosx
+(brew install imagemagick)
 
 # auto rotate
 # not sure if we need to do this
@@ -17,5 +20,17 @@ https://imagemagick.org/script/download.php#macosx
 exiftool extractembedded
 exiftool -ee 
 
+photo
+# exiftool -ee -j aaa.jpb | grep -i date
+exiftool -ext jpg -ext png -r -if "\$EXIF:DateTimeOriginal"     -d "${dest_photo_dir_base}/%Y_%m%d_/%Y-%m-%d %H.%M.%S%%-c.%%e" "-filename<EXIF:DateTimeOriginal" "${TMPDIR}"
+exiftool -ext jpg -ext png -r -if "not \$EXIF:DateTimeOriginal" -d "${dest_photo_dir_base}/%Y_%m%d_/%Y-%m-%d %H.%M.%S%%-c.%%e" "-filename<File:FileModifyDate" "${TMPDIR}"
+
+video
+# fix timezone problem. if no 再用其他的
+# https://stackoverflow.com/questions/58936674/i-want-to-change-the-file-name-with-exiftool-to-result-of-adding-time-zone-9
+# exiftool -api QuickTimeUTC -ee aaa.mp4
+# exiftool -globaltimeshift 8 -ee  aaa.mp4
+exiftool -api QuickTimeUTC -ee -ext mov -ext mp4 -r -if "\$MediaCreateDate" -d "${dest_video_dir_base}/%Y_%m%d_/%Y-%m-%d %H.%M.%S%%-c.%%e" "-filename<MediaCreateDate" "${TMPDIR}"
+exiftool -api QuickTimeUTC -ee -ext mov -ext mp4 -r -if "not \$MediaCreateDate" -d "${dest_video_dir_base}/%Y_%m%d_/%Y-%m-%d %H.%M.%S%%-c.%%e" "-filename<CreateDate" "${TMPDIR}"
 
 
