@@ -1,9 +1,22 @@
 #!/bin/bash
+# 
+# . ./go.sh
+# . ./go.sh 1 # write NAS
+#
 
 echo $(date +"%Y-%m-%d %H:%M:%S") 'start_go.sh'
 export PATH=/usr/local/bin:$PATH
 cd /Users/jiechau/life_codes/exiftool_mac
 echo "$PWD"
+
+# ARG
+is_nas=0
+if [ "$#" -eq 1 ]; then
+  is_nas=$1 # it should be '1'
+fi
+echo "NAS=${is_nas}"
+#return
+#exit 0
 
 # config/config_vars.txt
 . config/config_vars.txt
@@ -90,6 +103,11 @@ do
 
 done
 
+# if sync to NAS
+if [ "$is_nas" -ne 1 ]; then
+  return
+  exit 0
+fi
 
 # rsync UltraFit256 to 162
 echo ""
