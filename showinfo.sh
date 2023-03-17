@@ -15,9 +15,15 @@ if [ "$#" -eq 1 ]; then
   fname=$1
 fi
 
-exiftool -G -api QuickTimeUTC -ee $fname | grep -i date
-mediainfo $fname | grep -i date
-stat -x $fname
+echo
+echo "exiftool:"
+exiftool -G -api QuickTimeUTC -ee "$fname" | grep -i date
+echo
+echo "mediainfo:"
+mediainfo "$fname" | grep -i date
+echo
+echo "stat:"
+stat "$fname"
 
 
 

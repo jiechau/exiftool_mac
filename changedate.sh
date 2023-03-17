@@ -1,5 +1,7 @@
 #/bin/bash
 
+# alias date=gdate
+
 # ARG
 # . ./changedate.sh 2023-01-03 18:30:00
 
@@ -35,7 +37,7 @@ if [ "$#" -eq 2 ]; then
 else
   echo '# filename must be "aaa.mp4"'
   echo '# for mac: alias date=gdate'
-  echo '. ./changedate.sh 2023-01-03 18:30:00'
+  echo ". ./changedate.sh "$(date +"%Y-%m-%d %H:%M:%S")
   return
   exit
 fi
