@@ -1,6 +1,6 @@
-/Users/jiechau/Dropbox/Camera Uploads
-/Users/jiechau/Dropbox/Camera Uploads - elaine
-/Users/jiechau/Dropbox/Camera Uploads - mabel
-/Users/jiechau/Dropbox/Camera Uploads - beatrice
-/Users/jiechau/Dropbox/share_jie_jj/jj/CameraUploads
-/Volumes/data/jiechau/_tmp_exiftool_mac/_ds_clips
+/Users/jiechau_huang/Dropbox/Camera Uploads
+/Users/jiechau_huang/Dropbox/Camera Uploads - elaine
+/Users/jiechau_huang/Dropbox/Camera Uploads - mabel
+/Users/jiechau_huang/Dropbox/Camera Uploads - beatrice
+/Users/jiechau_huang/Dropbox/share_jie_jj/jj/CameraUploads
+/Users/jiechau_huang/exif_working_dir/_tmp_exiftool_mac/_ds_clips
