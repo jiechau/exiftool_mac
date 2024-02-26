@@ -1,7 +1,14 @@
 RUN
 ===
 
-/Users/jiechau/life_codes/exiftool_mac/go.sh >> /Volumes/data/jiechau/_life_logs/exiftool_mac/go.log 2>&1
+mac
+need /usr/local/bin/exiftool (e.g. $ brew install exiftool)
+need ~/exif_working_dir
+
+cd ~
+cd life_codes/exiftool_mac
+. go 0 # copy from Dropbox
+. go 1 # copy from to network 
 
 
 problems
