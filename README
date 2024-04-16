@@ -58,12 +58,15 @@ video
 exiftool -api QuickTimeUTC -ee -ext mov -ext mp4 -r -if "\$MediaCreateDate" -d "${dest_video_dir_base}/%Y_%m%d_/%Y-%m-%d %H.%M.%S%%-c.%%e" "-filename<MediaCreateDate" "${TMPDIR}"
 exiftool -api QuickTimeUTC -ee -ext mov -ext mp4 -r -if "not \$MediaCreateDate" -d "${dest_video_dir_base}/%Y_%m%d_/%Y-%m-%d %H.%M.%S%%-c.%%e" "-filename<CreateDate" "${TMPDIR}"
 
-# for nas mp4
+# change date for nas mp4
 touch -t 202303022105.08 aaa.mp4
 setfile -d "03/02/2023 21:05:07" aaa.mp4
 exiftool -api QuickTimeUTC -ee "-MediaCreateDate='2023:03:02 21:05:09+08:00'" ccc.mp4 
 exiftool -api QuickTimeUTC -ee "-CreateDate='2023:03:02 21:05:09+08:00'" ccc.mp4 
 exiftool -api QuickTimeUTC -ee ccc.mp4
+
+# change gps for nas mp4
+exiftool -api QuickTimeUTC -ee -G -overwrite_original -tagsFromFile /Users/jiechau_huang/life_codes/exiftool_mac/gps_sample/gps_hby.mp4 -QuickTime:GPSCoordinates aaa.mp4
 
 # 711
 # under same folder
