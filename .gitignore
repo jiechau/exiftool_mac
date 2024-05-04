@@ -4,7 +4,8 @@
 #     https://www.atlassian.com/git/tutorials/saving-changes/gitignore
 
 
-
+# config/config_secrets.txt
+config_secrets.txt
 
 
 
