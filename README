@@ -7,8 +7,11 @@ need ~/exif_working_dir
 
 cd ~
 cd life_codes/exiftool_mac
-. go 0 # copy from Dropbox
-. go 1 # copy from to network 
+. go 0 # copy from Dropbox / delete Dropbox (to )
+# 整理 ~/exif_working_dir/UltraFit256/photo_latest, video_latest
+. go 1 # 需要 mac 連結網路裝置 to DS212 and DS918 (1 和 2 相同，但是 2 比較簡單) 
+. go 2 # rsync 在家裡的時候 to DS212 and DS918
+. go 3 # rsync 在外面的時候 to DS918 only
 
 
 problems
@@ -71,5 +74,15 @@ exiftool -api QuickTimeUTC -ee -G -overwrite_original -tagsFromFile /Users/jiech
 # 711
 # under same folder
 magick mogrify -path ./ -resize 50% -quality 50 *
+
+
+
+cd ~
+cd life_codes/exiftool_mac
+. go 0 # copy from Dropbox / delete Dropbox (to )
+# 整理 ~/exif_working_dir/UltraFit256/photo_latest, video_latest
+. go 1 # 需要 mac 連結網路裝置 to DS212 and DS918 (1 和 2 相同，但是 2 比較簡單) 
+. go 2 # rsync 在家裡的時候 to DS212 and DS918
+. go 3 # rsync 在外面的時候 to DS918 only
 
 
