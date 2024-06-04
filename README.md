@@ -39,7 +39,7 @@ drwxr-xr-x  3 jiechau_huang staff   96 12  5 21:19 'Camera Uploads - mother'
 This step is to move photos from those Dropbox Camera Uploads folders to an organized folder. Their Dropbox spece is free by the way.
 
 configure this file to suit your situation: config/config_vars.txt 
-```
+```shell
 program_dir_base=/Users/jiechau_huang/life_codes/exiftool_mac
 working_dir_base=/Users/jiechau_huang/exif_working_dir/_tmp_exiftool_mac
 moved_dir_base=/Users/jiechau_huang/exif_working_dir/_tmp_exiftool_mac/moved
@@ -54,7 +54,7 @@ remote_213_photo_dir_base=DS213file/_home/_jie/photo/photo_latest
 
 every time you issue this command, it would collect all pics to '\$dest_photo_dir_base' and '\$dest_video_dir_base'
 
-```
+```shell
 $ . go.sh 0
 ```
 
@@ -68,7 +68,7 @@ Remember what left under '\$dest_photo_dir_base' and '\$dest_video_dir_base' in 
 
 Issue thie command:
 
-```
+```shell
 $ . go.sh 2
 ```
 
@@ -77,6 +77,11 @@ And it will:
 - sync everything from '\$dest_photo_dir_base' to '\$remote_918_photo_dir_base' and '\$remote_213_photo_dir_base'
 - sync everything from '\$dest_video_dir_base' to '\$remote_213_video_dir_base' and '\$remote_213_photo_dir_base'
 
+As you can see, here I'm just backing up the organized directory to two other locations (or more locations) using rsync. These two places could be servers or computers where you do further processing. 
+
+For example, the location 192.168.123.162 is a NAS and performing a backup function. The other machine is a PC, 192.168.123.162, and will regularly synchronize the directory contents to the Google Photo album. For this part, you'll need to make some configurations on these remote servers/PCs according to your needs.
+
+If the rsync commands involve account credentials, you can refer to the part in '\$ . ./go.sh 3'. Here you'll need to copy config/config_secrets_example.txt to config/config_secrets.txt. The IP address, username, and password used by rsync are recorded here.
 
 ### (e) share photos
 

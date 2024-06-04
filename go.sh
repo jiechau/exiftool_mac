@@ -186,7 +186,7 @@ if [ "$is_nas" -eq 2 ]; then
    else
       echo "rsync 163 fail:" $?
    fi
-   # 213, strangly it's format is 192.168.123.163:/volume1/video/video_latest
+   # 213, strangly it's format is 192.168.123.162:/volume1/video/video_latest
    echo "--dry-run admin@192.168.123.162:/volume1/${remote_213_video_dir_base}/it_exists.txt"
    sshpass -p $pw rsync --port=873 -e "ssh -p 22" --dry-run --timeout=10 admin@192.168.123.162:/volume1/${remote_213_video_dir_base}/it_exists.txt 
    if [ $? -eq 0 ]; then
