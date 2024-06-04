@@ -60,9 +60,9 @@ $ . go.sh 0
 
 ### (c) image viewer ui re-org (optional)
 
-This step is optional. Now everything is under '$dest_photo_dir_base' and '$dest_video_dir_base', you could use some image viewer (e.g. XnView MP or FastStone) to review them, rename sub folder names, rotate the image ... etc.
+This step is optional. Now everything is under '\$dest_photo_dir_base' and '\$dest_video_dir_base', you could use some image viewer (e.g. XnView MP or FastStone) to review them, rename sub folder names, rotate the image ... etc.
 
-Remember what left under '$dest_photo_dir_base' and '$dest_video_dir_base' in the end is what exactly to be sync to backup servers.
+Remember what left under '\$dest_photo_dir_base' and '\$dest_video_dir_base' in the end is what exactly to be sync to backup servers.
 
 ### (d) backup photos: $ . go.sh 2
 
@@ -74,8 +74,8 @@ $ . go.sh 2
 
 And it will:
 
-- sync everything from '$dest_photo_dir_base' to '$remote_918_photo_dir_base' and '$remote_213_photo_dir_base'
-- sync everything from '$dest_video_dir_base' to '$remote_213_video_dir_base' and '$remote_213_photo_dir_base'
+- sync everything from '\$dest_photo_dir_base' to '\$remote_918_photo_dir_base' and '\$remote_213_photo_dir_base'
+- sync everything from '\$dest_video_dir_base' to '\$remote_213_video_dir_base' and '\$remote_213_photo_dir_base'
 
 
 ### (e) share photos
