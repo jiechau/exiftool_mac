@@ -22,7 +22,7 @@ Gather photos and videos from everyone's phones without them lifting a finger.
 - <span style="color:red">They don't have to do a thing – that's the key.</span> 
 - Have each family member share that folder with me (you would have to help them setting in the very frist time), so that I can see everyone's pics on my end.
 - for example, in my end i could read:
-```
+```shell
 ~/Dropbox
 jiechau_huang$ ls -l
 total 3056
@@ -52,7 +52,7 @@ remote_213_video_dir_base=DS213file/_home/_jie/video/video_latest
 remote_213_photo_dir_base=DS213file/_home/_jie/photo/photo_latest
 ```
 
-every time you issue this command, it would collect all pics to '$dest_photo_dir_base' and '$dest_video_dir_base'
+every time you issue this command, it would collect all pics to '\$dest_photo_dir_base' and '\$dest_video_dir_base'
 
 ```
 $ . go.sh 0
