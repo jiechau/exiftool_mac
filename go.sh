@@ -105,7 +105,6 @@ if [ "$is_nas" -eq 0 ]; then
                 fi
             done
 
-
             # auto rotate
             # not sure if we need to do this
             #mogrify -auto-orient ${TMPDIR}/*.jpg
