@@ -42,8 +42,8 @@ do
     # orig
     echo $filename_this
     # new date time
-    # /usr/local/bin/gdate -d "2023-01-03 18:30:00 GMT+08:00 + 100 seconds" "+%Y-%m-%d %H:%M:%S"
-    dt_file_file=$(/usr/local/bin/gdate -d "$orig_dt GMT+08:00 + $ii seconds" "+%Y-%m-%d %H:%M:%S")
+    # /opt/homebrew/bin/gdate -d "2023-01-03 18:30:00 GMT+08:00 + 100 seconds" "+%Y-%m-%d %H:%M:%S"
+    dt_file_file=$(gdate -d "$orig_dt GMT+08:00 + $ii seconds" "+%Y-%m-%d %H:%M:%S")
     echo $dt_file_file # 2023-01-05 00:00:07
     dy=$(date --date="$dt_file_file GMT+08:00" +'%Y')
     dm=$(date --date="$dt_file_file GMT+08:00" +'%m')

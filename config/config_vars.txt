@@ -1,9 +1,9 @@
-program_dir_base=/Users/jiechau_huang/life_codes/exiftool_mac
-working_dir_base=/Users/jiechau_huang/exif_working_dir/_tmp_exiftool_mac
-moved_dir_base=/Users/jiechau_huang/exif_working_dir/_tmp_exiftool_mac/moved
-problem_dir_base=/Users/jiechau_huang/exif_working_dir/_tmp_exiftool_mac/problem_ones
-dest_photo_dir_base=/Users/jiechau_huang/exif_working_dir/UltraFit256/photo_latest
-dest_video_dir_base=/Users/jiechau_huang/exif_working_dir/UltraFit256/video_latest
+program_dir_base=/Users/jiechau/life_codes/exiftool_mac
+working_dir_base=/Users/jiechau/exif_working_dir/_tmp_exiftool_mac
+moved_dir_base=/Users/jiechau/exif_working_dir/_tmp_exiftool_mac/moved
+problem_dir_base=/Users/jiechau/exif_working_dir/_tmp_exiftool_mac/problem_ones
+dest_photo_dir_base=/Users/jiechau/exif_working_dir/UltraFit256/photo_latest
+dest_video_dir_base=/Users/jiechau/exif_working_dir/UltraFit256/video_latest
 remote_918_video_dir_base=video/video_latest
 remote_918_photo_dir_base=photo/photo_latest
 remote_213_video_dir_base=DS213file/_home/_jie/video/video_latest

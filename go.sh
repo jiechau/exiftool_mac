@@ -9,9 +9,9 @@
 #
 
 echo $(date +"%Y-%m-%d %H:%M:%S") 'start_go.sh'
-export PATH=/usr/local/bin:$PATH
+export PATH=/opt/homebrew/bin:/usr/local/bin:$PATH
 #cd /Users/jiechau/life_codes/exiftool_mac # home mac
-cd /Users/jiechau_huang/life_codes/exiftool_mac # friDay mac
+cd /Users/jiechau/life_codes/exiftool_mac # friDay mac
 echo "$PWD"
 
 # ARG
@@ -74,16 +74,37 @@ if [ "$is_nas" -eq 0 ]; then
             TMPDIR=${moved_dir_base}/${tmp_idx}
             echo $tmp_idx $TMPDIR
 
-
-            # the sit part/start
-
-
             # create/move to tmp folder
             mkdir -p ${TMPDIR}
             mv "${DPDIR}"/*.jpg "${TMPDIR}" 2>/dev/null
             mv "${DPDIR}"/*.png "${TMPDIR}" 2>/dev/null
             mv "${DPDIR}"/*.mov "${TMPDIR}" 2>/dev/null
             mv "${DPDIR}"/*.mp4 "${TMPDIR}" 2>/dev/null
+            mv "${DPDIR}"/*.JPG "${TMPDIR}" 2>/dev/null
+            mv "${DPDIR}"/*.PNG "${TMPDIR}" 2>/dev/null
+            mv "${DPDIR}"/*.MOV "${TMPDIR}" 2>/dev/null
+            mv "${DPDIR}"/*.MP4 "${TMPDIR}" 2>/dev/null
+
+
+            # Directory to process
+            DIR="${TMPDIR}"
+            # Find all files with uppercase extensions and rename them
+            find "$DIR" -type f | while IFS= read -r file; do
+                # Get the file extension in uppercase
+                ext=$(echo "${file##*.}" | tr '[:lower:]' '[:upper:]')
+                # Get the file path without the extension
+                base="${file%.*}"
+                
+                # Check if the extension is uppercase
+                if [[ "$file" =~ \.[A-Z]+$ ]]; then
+                    # Convert the extension to lowercase
+                    newfile="${base}.$(echo "$ext" | tr '[:upper:]' '[:lower:]')"
+                    # Rename the file
+                    mv "$file" "$newfile"
+                    echo "Renamed: $file -> $newfile"
+                fi
+            done
+
 
             # auto rotate
             # not sure if we need to do this
@@ -198,7 +219,7 @@ if [ "$is_nas" -eq 2 ]; then
       echo "rsync 162 fail:" $?   
    fi
    # test
-   #sshpass -p $pw rsync --port=873 -e "ssh -p 22" -a --delete /Users/jiechau_huang/tmp/DS918file/file_ttt/ admin@192.168.123.163::DS918file/file_ttt
+   #sshpass -p $pw rsync --port=873 -e "ssh -p 22" -a --delete /Users/jiechau/tmp/DS918file/file_ttt/ admin@192.168.123.163::DS918file/file_ttt
    echo
    echo "is_nas=${is_nas} done"
 fi

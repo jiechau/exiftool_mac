@@ -2,7 +2,7 @@ RUN
 ===
 
 mac
-need /usr/local/bin/exiftool (e.g. $ brew install exiftool)
+need /usr/local/bin/exiftool or /opt/homebrew/bin/exiftool (e.g. $ brew install exiftool)
 need ~/exif_working_dir
 
 cd ~
@@ -22,7 +22,7 @@ https://apple.stackexchange.com/questions/378553/crontab-operation-not-permitted
 add /usr/sbin/cron to full access disk
 
 exiftool not found:
-add export PATH=/usr/local/bin:$PATH to go.sh
+add export PATH=/opt/homebrew/bin:/usr/local/bin:$PATH to go.sh
 
 
 README
