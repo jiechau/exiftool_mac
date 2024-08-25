@@ -69,7 +69,7 @@ exiftool -api QuickTimeUTC -ee "-CreateDate='2023:03:02 21:05:09+08:00'" ccc.mp4
 exiftool -api QuickTimeUTC -ee ccc.mp4
 
 # change gps for nas mp4
-exiftool -api QuickTimeUTC -ee -G -overwrite_original -tagsFromFile /Users/jiechau_huang/life_codes/exiftool_mac/gps_sample/gps_hby.mp4 -QuickTime:GPSCoordinates aaa.mp4
+exiftool -api QuickTimeUTC -ee -G -overwrite_original -tagsFromFile /Users/jiechau/life_codes/exiftool_mac/gps_sample/gps_hby.mp4 -QuickTime:GPSCoordinates aaa.mp4
 
 # 711
 # under same folder

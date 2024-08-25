@@ -24,14 +24,14 @@ Gather photos and videos from everyone's phones without them lifting a finger.
 - for example, in my end i could read:
 ```shell
 ~/Dropbox
-jiechau_huang$ ls -l
+jiechau$ ls -l
 total 3056
-drwxr-xr-x  4 jiechau_huang staff  128  6  3 20:50 'Camera Uploads'
-drwxr-xr-x  3 jiechau_huang staff   96  9 12 21:19 'Camera Uploads - beatrice'
-drwxr-xr-x 56 jiechau_huang staff 1792  6  4 21:19 'Camera Uploads - elaine'
-drwxr-xr-x  3 jiechau_huang staff   96  3 31 21:19 'Camera Uploads - mabel'
-drwxr-xr-x 43 jiechau_huang staff 1376  2 26 19:28 'Camera Uploads - mammy'
-drwxr-xr-x  3 jiechau_huang staff   96 12  5 21:19 'Camera Uploads - mother'
+drwxr-xr-x  4 jiechau staff  128  6  3 20:50 'Camera Uploads'
+drwxr-xr-x  3 jiechau staff   96  9 12 21:19 'Camera Uploads - beatrice'
+drwxr-xr-x 56 jiechau staff 1792  6  4 21:19 'Camera Uploads - elaine'
+drwxr-xr-x  3 jiechau staff   96  3 31 21:19 'Camera Uploads - mabel'
+drwxr-xr-x 43 jiechau staff 1376  2 26 19:28 'Camera Uploads - mammy'
+drwxr-xr-x  3 jiechau staff   96 12  5 21:19 'Camera Uploads - mother'
 ```
 
 ### (b) collect photos: $ . go.sh 0
@@ -40,12 +40,12 @@ This step is to move photos from those Dropbox Camera Uploads folders to an orga
 
 configure this file to suit your situation: config/config_vars.txt 
 ```shell
-program_dir_base=/Users/jiechau_huang/life_codes/exiftool_mac
-working_dir_base=/Users/jiechau_huang/exif_working_dir/_tmp_exiftool_mac
-moved_dir_base=/Users/jiechau_huang/exif_working_dir/_tmp_exiftool_mac/moved
-problem_dir_base=/Users/jiechau_huang/exif_working_dir/_tmp_exiftool_mac/problem_ones
-dest_photo_dir_base=/Users/jiechau_huang/exif_working_dir/UltraFit256/photo_latest
-dest_video_dir_base=/Users/jiechau_huang/exif_working_dir/UltraFit256/video_latest
+program_dir_base=/Users/jiechau/life_codes/exiftool_mac
+working_dir_base=/Users/jiechau/exif_working_dir/_tmp_exiftool_mac
+moved_dir_base=/Users/jiechau/exif_working_dir/_tmp_exiftool_mac/moved
+problem_dir_base=/Users/jiechau/exif_working_dir/_tmp_exiftool_mac/problem_ones
+dest_photo_dir_base=/Users/jiechau/exif_working_dir/UltraFit256/photo_latest
+dest_video_dir_base=/Users/jiechau/exif_working_dir/UltraFit256/video_latest
 remote_918_video_dir_base=video/video_latest
 remote_918_photo_dir_base=photo/photo_latest
 remote_213_video_dir_base=DS213file/_home/_jie/video/video_latest

@@ -4,7 +4,7 @@
 
 # ARG
 # 在那個需要工作的目錄下 改變目錄下所有照片日期 步進1秒
-# . /Users/jiechau_huang/life_codes/exiftool_mac/changedate_step.sh 2023-01-03 18:30:00
+# . /Users/jiechau/life_codes/exiftool_mac/changedate_step.sh 2023-01-03 18:30:00
 
 # # view info
 # exiftool -G aaa.jpg | grep -i date
@@ -21,7 +21,7 @@ else
   echo ". ./changedate_step.sh "$(date +"%Y-%m-%d %H:%M:%S")
   echo "# run under the dir you like to work"
   echo "# put all pics in that dir"
-  echo ". /Users/jiechau_huang/life_codes/exiftool_mac/changedate_step.sh "$(date +"%Y-%m-%d %H:%M:%S")
+  echo ". /Users/jiechau/life_codes/exiftool_mac/changedate_step.sh "$(date +"%Y-%m-%d %H:%M:%S")
   return
   exit
 fi
