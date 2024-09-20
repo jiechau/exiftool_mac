@@ -7,6 +7,7 @@
 #
 # 另外注意 UltraFit256/photo_,video_ 下面要有 it_exists.txt
 #
+# 2024/09/21 ./go.sh 2 突然不能用，後來 rsync 加 --protocol=29
 
 echo $(date +"%Y-%m-%d %H:%M:%S") 'start_go.sh'
 export PATH=/opt/homebrew/bin:/usr/local/bin:$PATH
@@ -196,23 +197,26 @@ fi
 # if sync to NAS
 if [ "$is_nas" -eq 2 ]; then
    # 918, strangly it's format is 192.168.123.163::video/video_latest
+   # --protocol=29
    echo "--dry-run admin@192.168.123.163::${remote_918_video_dir_base}/it_exists.txt"
-   sshpass -p $pw rsync --port=873 -e "ssh -p 22" --dry-run --timeout=10 admin@192.168.123.163::${remote_918_video_dir_base}/it_exists.txt
+   sshpass -p $pw rsync --port=873 -e "ssh -p 22" --protocol=29 --dry-run --timeout=10 admin@192.168.123.163::${remote_918_video_dir_base}/it_exists.txt
+   echo "sshpass -p $pw rsync --port=873 -e \"ssh -p 22\" --protocol=29 --dry-run --timeout=10 admin@192.168.123.163::${remote_918_video_dir_base}/it_exists.txt"
    if [ $? -eq 0 ]; then
-      sshpass -p $pw rsync --port=873 -e "ssh -p 22" -a --delete "${dest_video_dir_base}/" admin@192.168.123.163::${remote_918_video_dir_base}
+      sshpass -p $pw rsync --port=873 -e "ssh -p 22" -a --delete --protocol=29 "${dest_video_dir_base}/" admin@192.168.123.163::${remote_918_video_dir_base}
       echo "163::video" $?
-      sshpass -p $pw rsync --port=873 -e "ssh -p 22" -a --delete "${dest_photo_dir_base}/" admin@192.168.123.163::${remote_918_photo_dir_base} 
+      sshpass -p $pw rsync --port=873 -e "ssh -p 22" -a --delete --protocol=29 "${dest_photo_dir_base}/" admin@192.168.123.163::${remote_918_photo_dir_base} 
       echo "163::photo" $?
    else
       echo "rsync 163 fail:" $?
    fi
    # 213, strangly it's format is 192.168.123.162:/volume1/video/video_latest
    echo "--dry-run admin@192.168.123.162:/volume1/${remote_213_video_dir_base}/it_exists.txt"
-   sshpass -p $pw rsync --port=873 -e "ssh -p 22" --dry-run --timeout=10 admin@192.168.123.162:/volume1/${remote_213_video_dir_base}/it_exists.txt 
+   echo "sshpass -p $pw rsync --port=873 -e \"ssh -p 22\" --protocol=29 --dry-run --timeout=10 admin@192.168.123.162:/volume1/${remote_213_video_dir_base}/it_exists.txt" 
+   sshpass -p $pw rsync --port=873 -e "ssh -p 22" --protocol=29 --dry-run --timeout=10 admin@192.168.123.162:/volume1/${remote_213_video_dir_base}/it_exists.txt 
    if [ $? -eq 0 ]; then
-      sshpass -p $pw rsync --port=873 -e "ssh -p 22" -a --delete "${dest_video_dir_base}/" admin@192.168.123.162:/volume1/${remote_213_video_dir_base} 
+      sshpass -p $pw rsync --port=873 -e "ssh -p 22" -a --delete --protocol=29 "${dest_video_dir_base}/" admin@192.168.123.162:/volume1/${remote_213_video_dir_base} 
       echo "162:/../video" $?
-      sshpass -p $pw rsync --port=873 -e "ssh -p 22" -a --delete "${dest_photo_dir_base}/" admin@192.168.123.162:/volume1/${remote_213_photo_dir_base}
+      sshpass -p $pw rsync --port=873 -e "ssh -p 22" -a --delete --protocol=29 "${dest_photo_dir_base}/" admin@192.168.123.162:/volume1/${remote_213_photo_dir_base}
       echo "162:/../photo" $?
    else
       echo "rsync 162 fail:" $?   
