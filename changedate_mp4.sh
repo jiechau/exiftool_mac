@@ -3,9 +3,9 @@
 # alias date=gdate
 
 # ARG
-# . ./changedate.sh 2023-01-03 18:30:00
+# . ./changedate_mp4.sh 2023-01-03 18:30:00
 
-# copy changedate.sh to working dir 
+# copy changedate_mp4.sh to working dir 
 #   (e.g. /Volumes/data/jiechau/_tmp_exiftool_mac/_ds_clips or ~/Downloads/ready) 
 # the file must be named aaa.mp4
 
@@ -23,7 +23,7 @@
 
 
 # ARG
-# . ./changedate.sh 2023-01-03 18:30:00
+# . ./changedate_mp4.sh 2023-01-03 18:30:00
 # echo $(date +"%Y-%m-%d %H:%M:%S") 'start'
 if [ "$#" -eq 2 ]; then
   ee=$1
@@ -37,18 +37,28 @@ if [ "$#" -eq 2 ]; then
 else
   echo '# filename must be "aaa.mp4"'
   echo '# for mac: alias date=gdate'
-  echo ". ./changedate.sh "$(date +"%Y-%m-%d %H:%M:%S")
+  echo ". ./changedate_mp4.sh "$(date +"%Y-%m-%d %H:%M:%S")
   return
   exit
 fi
 
 echo "${dy}-${dm}-${dd} ${hh}:${hm}:${hs}"
 
+# stop here
+read -n 1 -s -r -p "Press any key to continue..."
+echo # move to a new line after key press
+
+
 # datalog
 touch -t ${dy}${dm}${dd}${hh}${hm}.${hs} aaa.mp4
 setfile -d "${dm}/${dd}/${dy} ${hh}:${hm}:${hs}" aaa.mp4
 exiftool -overwrite_original -api QuickTimeUTC -ee \
  "-QuickTime:CreateDate='${dy}:${dm}:${dd} ${hh}:${hm}:${hs}+08:00'" aaa.mp4
+exiftool -overwrite_original -api QuickTimeUTC -ee \
+ "-QuickTime:MediaCreateDate='${dy}:${dm}:${dd} ${hh}:${hm}:${hs}+08:00'" aaa.mp4
 
+
+# echo done
+echo 'done'
 
 

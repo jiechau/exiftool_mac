@@ -75,7 +75,8 @@ exiftool -api QuickTimeUTC -ee -G -overwrite_original -tagsFromFile /Users/jiech
 # under same folder
 magick mogrify -path ./ -resize 50% -quality 50 *
 
-
+# extract .mp3 from .mp4
+for file in *.mp4; do ffmpeg -i "$file" -q:a 0 -map a "${file%.mp4}.mp3"; done
 
 cd ~
 cd life_codes/exiftool_mac
