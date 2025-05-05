@@ -9,6 +9,9 @@
 #
 # 2024/09/21 ./go.sh 2 突然不能用，後來 rsync 加 --protocol=29
 
+alias date=/opt/homebrew/bin/gdate # 因為 mac 的 date 參數和 gnu 不一樣
+alias rsync=/opt/homebrew/bin/rsync # 因為 mac 的 rsync 版本一直有問題
+
 echo $(date +"%Y-%m-%d %H:%M:%S") 'start_go.sh'
 export PATH=/opt/homebrew/bin:/usr/local/bin:$PATH
 #cd /Users/jiechau/life_codes/exiftool_mac # home mac

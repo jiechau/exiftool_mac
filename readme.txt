@@ -4,6 +4,9 @@ RUN
 mac
 need /usr/local/bin/exiftool or /opt/homebrew/bin/exiftool (e.g. $ brew install exiftool)
 need ~/exif_working_dir
+需要
+alias date=/opt/homebrew/bin/gdate # 因為 mac 的 date 參數和 gnu 不一樣
+alias rsync=/opt/homebrew/bin/rsync # 因為 mac 的 rsync 版本一直有問題
 
 cd ~
 cd life_codes/exiftool_mac
