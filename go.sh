@@ -224,6 +224,23 @@ if [ "$is_nas" -eq 2 ]; then
    else
       echo "rsync 162 fail:" $?   
    fi
+
+
+   # 1525, strangly it's format is 192.168.123.164::video/video_latest
+   echo "--dry-run jie@192.168.123.164::${remote_1525_video_dir_base}/it_exists.txt"
+   echo "sshpass -p $pw_1525 rsync --port=873 -e \"ssh -p 22\" --protocol=29 --dry-run --timeout=10 jie@192.168.123.164::${remote_1525_video_dir_base}/it_exists.txt" 
+   sshpass -p $pw_1525 rsync --port=873 -e "ssh -p 22" --protocol=29 --dry-run --timeout=10 jie@192.168.123.164::${remote_1525_video_dir_base}/it_exists.txt 
+   if [ $? -eq 0 ]; then
+      sshpass -p $pw_1525 rsync --port=873 -e "ssh -p 22" -a --delete --protocol=29 "${dest_video_dir_base}/" jie@192.168.123.164::${remote_1525_video_dir_base} 
+      echo "164::DSfile/_home/_jie/video/video_latest" $?
+      sshpass -p $pw_1525 rsync --port=873 -e "ssh -p 22" -a --delete --protocol=29 "${dest_photo_dir_base}/" jie@192.168.123.164::${remote_1525_photo_dir_base}
+      echo "164::DSfile/_home/_jie/video/photo_latest" $?
+   else
+      echo "rsync 164 fail:" $?   
+   fi
+
+
+
    # test
    #sshpass -p $pw rsync --port=873 -e "ssh -p 22" -a --delete /Users/jiechau/tmp/DS918file/file_ttt/ admin@192.168.123.163::DS918file/file_ttt
    echo
@@ -237,15 +254,15 @@ fi
 if [ "$is_nas" -eq 3 ]; then
    # 918
    # 918
-   echo "--dry-run admin@$pi::${remote_918_video_dir_base}/it_exists.txt"
-   sshpass -p $pw rsync --port=$pp -e "ssh -p $pp" --dry-run --timeout=10 admin@$pi::${remote_918_video_dir_base}/it_exists.txt
+   echo "--dry-run admin@$pi_public::${remote_918_video_dir_base}/it_exists.txt"
+   sshpass -p $pw_public rsync --port=$pp_public -e "ssh -p $pp_public" --dry-run --timeout=10 admin@$pi_public::${remote_918_video_dir_base}/it_exists.txt
    if [ $? -eq 0 ]; then
-      sshpass -p $pw rsync --port=$pp -e "ssh -p $pp" -a --delete "${dest_video_dir_base}/" admin@$pi::${remote_918_video_dir_base} 
-      echo "$pi::video" $?
-      sshpass -p $pw rsync --port=$pp -e "ssh -p $pp" -a --delete "${dest_photo_dir_base}/" admin@$pi::${remote_918_photo_dir_base} 
-      echo "$pi::photo" $?
+      sshpass -p $pw_public rsync --port=$pp_public -e "ssh -p $pp_public" -a --delete "${dest_video_dir_base}/" admin@$pi_public::${remote_918_video_dir_base} 
+      echo "$pi_public::video" $?
+      sshpass -p $pw_public rsync --port=$pp_public -e "ssh -p $pp_public" -a --delete "${dest_photo_dir_base}/" admin@$pi_public::${remote_918_photo_dir_base} 
+      echo "$pi_public::photo" $?
    else
-      echo "rsync $pi fail:" $?   
+      echo "rsync $pi_public fail:" $?   
    fi
    echo
    echo "is_nas=${is_nas} done"
