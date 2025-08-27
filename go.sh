@@ -158,13 +158,13 @@ if [ "$is_nas" -eq 0 ]; then
 
 fi
 
-
+# ??
 # . go.sh 1 才會 # if sync to NAS
 #
 # if sync to NAS
 if [ "$is_nas" -eq 1 ]; then
 
-   # rsync UltraFit256 to 162
+   # rsync UltraFit256 to 918, 1525
    echo ""
 
    CHECKFILE="/Volumes/${remote_918_video_dir_base}/it_exists.txt"
@@ -179,17 +179,17 @@ if [ "$is_nas" -eq 1 ]; then
       rsync -a --delete "${dest_photo_dir_base}/" "/Volumes/${remote_918_photo_dir_base}"
    fi
 
-   CHECKFILE="/Volumes/${remote_213_video_dir_base}/it_exists.txt"
-   if [ -f "$CHECKFILE" ]; then
-      echo "213 video exists: $CHECKFILE"
-      rsync -a --delete "${dest_video_dir_base}/" "/Volumes/${remote_213_video_dir_base}"
-   fi
-
-   CHECKFILE="/Volumes/${remote_213_photo_dir_base}/it_exists.txt"
-   if [ -f "$CHECKFILE" ]; then
-      echo "213 photo exists: $CHECKFILE"
-      rsync -a --delete "${dest_photo_dir_base}/" "/Volumes/${remote_213_photo_dir_base}"
-   fi
+   # CHECKFILE="/Volumes/${remote_213_video_dir_base}/it_exists.txt"
+   # if [ -f "$CHECKFILE" ]; then
+   #    echo "213 video exists: $CHECKFILE"
+   #    rsync -a --delete "${dest_video_dir_base}/" "/Volumes/${remote_213_video_dir_base}"
+   # fi
+   # 
+   # CHECKFILE="/Volumes/${remote_213_photo_dir_base}/it_exists.txt"
+   # if [ -f "$CHECKFILE" ]; then
+   #    echo "213 photo exists: $CHECKFILE"
+   #    rsync -a --delete "${dest_photo_dir_base}/" "/Volumes/${remote_213_photo_dir_base}"
+   # fi
 
    echo "is_nas=${is_nas} done"
 fi
@@ -212,19 +212,21 @@ if [ "$is_nas" -eq 2 ]; then
    else
       echo "rsync 163 fail:" $?
    fi
-   # 213, strangly it's format is 192.168.123.162:/volume1/video/video_latest
-   echo "--dry-run admin@192.168.123.162:/volume1/${remote_213_video_dir_base}/it_exists.txt"
-   echo "sshpass -p $pw rsync --port=873 -e \"ssh -p 22\" --protocol=29 --dry-run --timeout=10 admin@192.168.123.162:/volume1/${remote_213_video_dir_base}/it_exists.txt" 
-   sshpass -p $pw rsync --port=873 -e "ssh -p 22" --protocol=29 --dry-run --timeout=10 admin@192.168.123.162:/volume1/${remote_213_video_dir_base}/it_exists.txt 
-   if [ $? -eq 0 ]; then
-      sshpass -p $pw rsync --port=873 -e "ssh -p 22" -a --delete --protocol=29 "${dest_video_dir_base}/" admin@192.168.123.162:/volume1/${remote_213_video_dir_base} 
-      echo "162:/../video" $?
-      sshpass -p $pw rsync --port=873 -e "ssh -p 22" -a --delete --protocol=29 "${dest_photo_dir_base}/" admin@192.168.123.162:/volume1/${remote_213_photo_dir_base}
-      echo "162:/../photo" $?
-   else
-      echo "rsync 162 fail:" $?   
-   fi
 
+   
+   # # 213, strangly it's format is 192.168.123.162:/volume1/video/video_latest
+   # echo "--dry-run admin@192.168.123.162:/volume1/${remote_213_video_dir_base}/it_exists.txt"
+   # echo "sshpass -p $pw rsync --port=873 -e \"ssh -p 22\" --protocol=29 --dry-run --timeout=10 admin@192.168.123.162:/volume1/${remote_213_video_dir_base}/it_exists.txt" 
+   # sshpass -p $pw rsync --port=873 -e "ssh -p 22" --protocol=29 --dry-run --timeout=10 admin@192.168.123.162:/volume1/${remote_213_video_dir_base}/it_exists.txt 
+   # if [ $? -eq 0 ]; then
+   #    sshpass -p $pw rsync --port=873 -e "ssh -p 22" -a --delete --protocol=29 "${dest_video_dir_base}/" admin@192.168.123.162:/volume1/${remote_213_video_dir_base} 
+   #    echo "162:/../video" $?
+   #    sshpass -p $pw rsync --port=873 -e "ssh -p 22" -a --delete --protocol=29 "${dest_photo_dir_base}/" admin@192.168.123.162:/volume1/${remote_213_photo_dir_base}
+   #    echo "162:/../photo" $?
+   # else
+   #    echo "rsync 162 fail:" $?   
+   # fi
+   
 
    # 1525, strangly it's format is 192.168.123.164::video/video_latest
    echo "--dry-run jie@192.168.123.164::${remote_1525_video_dir_base}/it_exists.txt"

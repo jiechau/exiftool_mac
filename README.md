@@ -79,7 +79,7 @@ And it will:
 
 As you can see, here I'm just backing up the organized directory to two other locations (or more locations) using rsync. These two places could be servers or computers where you do further processing. 
 
-For example, the location 192.168.123.162 is a NAS and performing a backup function. The other machine is a PC, 192.168.123.162, and will regularly synchronize the directory contents to the Google Photo album. For this part, you'll need to make some configurations on these remote servers/PCs according to your needs.
+For example, the location 192.168.123.163 is a NAS and performing a backup function. The other machine is a PC, 192.168.123.163, and will regularly synchronize the directory contents to the Google Photo album. For this part, you'll need to make some configurations on these remote servers/PCs according to your needs.
 
 If the rsync commands involve account credentials, you can refer to the part in '\$ . ./go.sh 3'. Here you'll need to copy config/config_secrets_example.txt to config/config_secrets.txt. The IP address, username, and password used by rsync are recorded here.
 
