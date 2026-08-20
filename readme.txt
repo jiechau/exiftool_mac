@@ -1,3 +1,8 @@
+This file is an engineer's memo only. 
+Do not reference or modify this file until you are explicitly told to do so.
+
+
+
 RUN
 ===
 
@@ -17,8 +22,8 @@ cd life_codes/exiftool_mac
 . go.sh 3 # rsync 在外面的時候 to DS918 only
 
 
-problems
-========
+problems and solutions
+======================
 
 cron operation not permitted
 https://apple.stackexchange.com/questions/378553/crontab-operation-not-permitted

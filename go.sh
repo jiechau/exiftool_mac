@@ -44,6 +44,7 @@ echo $moved_dir_base
 echo $problem_dir_base
 echo $dest_video_dir_base # UltraFit256
 echo $dest_photo_dir_base # UltraFit256
+echo $dest_camera_dir_base # UltraFit256
 echo ""
 
 # 這些是 dropbox 的實際目錄
@@ -54,6 +55,8 @@ IFS=$'\r\n' GLOBIGNORE='*' command eval  'sourcedir=($(<$filename_sourcedir))'
 echo $filename_sourcedir
 echo ${remote_918_video_dir_base}
 echo ${remote_918_photo_dir_base}
+echo ${remote_918_camera_dir_base}
+echo ${remote_1525_camera_dir_base}
 echo ${remote_213_video_dir_base}
 echo ${remote_213_photo_dir_base}
 echo ""
@@ -179,6 +182,15 @@ if [ "$is_nas" -eq 1 ]; then
       rsync -a --delete "${dest_photo_dir_base}/" "/Volumes/${remote_918_photo_dir_base}"
    fi
 
+   # camera: 來源端也要檢查 (UltraFit256 沒掛上就不要 --delete 遠端)
+   CHECKFILE="/Volumes/${remote_918_camera_dir_base}"
+   if [ -d "$CHECKFILE" ] && [ -f "${dest_camera_dir_base}/it_exists.txt" ]; then
+      echo "918 camera exists: $CHECKFILE"
+      rsync -a --delete "${dest_camera_dir_base}/" "/Volumes/${remote_918_camera_dir_base}"
+   else
+      echo "918 camera skipped: $CHECKFILE / ${dest_camera_dir_base}/it_exists.txt"
+   fi
+
    # CHECKFILE="/Volumes/${remote_213_video_dir_base}/it_exists.txt"
    # if [ -f "$CHECKFILE" ]; then
    #    echo "213 video exists: $CHECKFILE"
@@ -209,6 +221,13 @@ if [ "$is_nas" -eq 2 ]; then
       echo "163::video" $?
       sshpass -p $pw rsync --port=873 -e "ssh -p 22" -a --delete --protocol=29 "${dest_photo_dir_base}/" admin@192.168.123.163::${remote_918_photo_dir_base} 
       echo "163::photo" $?
+      # camera: 本機來源要有 it_exists.txt (UltraFit256 沒掛上就不要 --delete 遠端)
+      if [ -f "${dest_camera_dir_base}/it_exists.txt" ]; then
+         sshpass -p $pw rsync --port=873 -e "ssh -p 22" -a --delete --protocol=29 "${dest_camera_dir_base}/" admin@192.168.123.163::${remote_918_camera_dir_base}
+         echo "163::camera" $?
+      else
+         echo "163::camera skipped, no ${dest_camera_dir_base}/it_exists.txt"
+      fi
    else
       echo "rsync 163 fail:" $?
    fi
@@ -237,6 +256,13 @@ if [ "$is_nas" -eq 2 ]; then
       echo "164::DSfile/_home/_jie/video/video_latest" $?
       sshpass -p $pw_1525 rsync --port=873 -e "ssh -p 22" -a --delete --protocol=29 "${dest_photo_dir_base}/" jie@192.168.123.164::${remote_1525_photo_dir_base}
       echo "164::DSfile/_home/_jie/video/photo_latest" $?
+      # camera: 本機來源要有 it_exists.txt (UltraFit256 沒掛上就不要 --delete 遠端)
+      if [ -f "${dest_camera_dir_base}/it_exists.txt" ]; then
+         sshpass -p $pw_1525 rsync --port=873 -e "ssh -p 22" -a --delete --protocol=29 "${dest_camera_dir_base}/" jie@192.168.123.164::${remote_1525_camera_dir_base}
+         echo "164::${remote_1525_camera_dir_base}" $?
+      else
+         echo "164::camera skipped, no ${dest_camera_dir_base}/it_exists.txt"
+      fi
    else
       echo "rsync 164 fail:" $?   
    fi
@@ -263,6 +289,13 @@ if [ "$is_nas" -eq 3 ]; then
       echo "$pi_public::video" $?
       sshpass -p $pw_public rsync --port=$pp_public -e "ssh -p $pp_public" -a --delete "${dest_photo_dir_base}/" admin@$pi_public::${remote_918_photo_dir_base} 
       echo "$pi_public::photo" $?
+      # camera: 本機來源要有 it_exists.txt (UltraFit256 沒掛上就不要 --delete 遠端)
+      if [ -f "${dest_camera_dir_base}/it_exists.txt" ]; then
+         sshpass -p $pw_public rsync --port=$pp_public -e "ssh -p $pp_public" -a --delete "${dest_camera_dir_base}/" admin@$pi_public::${remote_918_camera_dir_base}
+         echo "$pi_public::camera" $?
+      else
+         echo "$pi_public::camera skipped, no ${dest_camera_dir_base}/it_exists.txt"
+      fi
    else
       echo "rsync $pi_public fail:" $?   
    fi

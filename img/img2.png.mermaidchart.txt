@@ -1,0 +1,58 @@
+graph LR
+
+  subgraph iphone_me["iphone_me"]
+    C1["<img src='https://i.imgur.com/PV2LS85.png'/>"]
+  end
+  subgraph iphone_wife["iphone_wife"]
+    C2["<img src='https://i.imgur.com/PV2LS85.png'/>"]
+  end
+  subgraph iphone_mother["iphone_mother"]
+    C3["<img src='https://i.imgur.com/PV2LS85.png'/>"]
+  end
+  subgraph dropbox["(a) dropbox"]
+    AA["<img src='https://i.imgur.com/ATrbPJI.png'/>"]
+    A0["<img src='https://i.imgur.com/cjkELM8.png'/>"]
+  end
+  C1 -.-> |background upload| A0
+  C2 -.-> |background upload| A0
+  C3 -.-> |background upload| A0
+
+
+  subgraph file_system_0["photo/video file system"]
+    BB["(b) command: \n $ . go.sh 0"]
+    B1["<img src='https://i.imgur.com/zxdr6Qx.png'/>"]
+    B0["<img src='https://i.imgur.com/mRqWQHm.png'/>"]
+  end
+  A0 -->  B0
+
+  subgraph plugin3["(c) image viewer ui re-org"]
+    CC1["<img src='https://i.imgur.com/3YL3Gvf.png'/>"]
+    CC2["<img src='https://i.imgur.com/KqeFXSG.png'/>"]
+  end
+  B0 -.->  plugin3
+
+  CAM["camera SD card <br/> <b>camera_latest</b> <br/> JPG + RAW, organized by hand"]
+
+  subgraph plugin4["photo/video/camera file system"]
+    DD["(d) command: \n $ . go.sh 2"]
+    D0["<img src='https://i.imgur.com/mRqWQHm.png'/>"]
+  end
+  plugin3 -.->  D0
+  CAM -.-> |manual import| D0
+
+  subgraph nas["local backup NAS &nbsp; (rsync -a --delete)"]
+    N1["<img src='https://i.imgur.com/ecRBtpN.png'/> <br/> DS918"]
+    N2["<img src='https://i.imgur.com/ecRBtpN.png'/> <br/> DS1525"]
+  end
+  D0 --> |"$ . go.sh 2"| nas
+
+  subgraph TD plugin5["photo APPs (NOT part of this project)"]
+    E2["<img src='https://i.imgur.com/NKBXXJO.png'/>"]
+    E3["<img src='https://i.imgur.com/wJqqilv.png'/>"]
+    E4["<img src='https://i.imgur.com/5IZIYMe.png'/>"]
+    E5["<img src='https://i.imgur.com/mDdph8S.png'/>"]
+  end
+  nas -.-> |Google Photos| E2
+  nas -.-> E3
+  nas -.-> E4
+  nas -.-> E5
