@@ -4,6 +4,7 @@
 # . ./go.sh 1 # write NAS (need mac local mount: /Volumes/)
 # . ./go.sh 2 # write NAS, using intranet rsync 873
 # . ./go.sh 3 # write NAS, using internet, only ds918, no ds212
+# . ./go.sh camera # camera_working 雙向同步 (only ds918, 家裡 LAN)
 #
 # 另外注意 UltraFit256/photo_,video_ 下面要有 it_exists.txt
 #
@@ -27,8 +28,25 @@ if [ "$#" -ne 1 ]; then
 else
    is_nas=$1 # it should be '1'
 fi
+
+# 'camera' 是雙向同步 camera_working，和 0/1/2/3 的單向備份不一樣。
+# 這裡換成 is_nas=9，讓下面 -eq 0/1/2/3 的區塊都不會進去。
+is_camera=0
+if [ "$is_nas" = "camera" ]; then
+   is_camera=1
+   is_nas=9
+fi
+# 下面的區塊都是用 -eq 比數字，非數字會噴 "integer expression expected"
+case "$is_nas" in
+   ''|*[!0-9]*)
+      echo "bad arg: '$1' (should be 0,1,2,3 or camera)"
+      return
+      #exit 0
+      ;;
+esac
+
 echo "args number = $#, OK"
-echo "is_nas=${is_nas} (should be 0,1,2,3)"
+echo "is_nas=${is_nas} (should be 0,1,2,3 or camera)"
 echo ""
 
 
@@ -45,6 +63,7 @@ echo $problem_dir_base
 echo $dest_video_dir_base # UltraFit256
 echo $dest_photo_dir_base # UltraFit256
 echo $dest_camera_dir_base # UltraFit256
+echo $dest_camera_working_dir_base # UltraFit256
 echo ""
 
 # 這些是 dropbox 的實際目錄
@@ -56,6 +75,7 @@ echo $filename_sourcedir
 echo ${remote_918_video_dir_base}
 echo ${remote_918_photo_dir_base}
 echo ${remote_918_camera_dir_base}
+echo ${remote_918_camera_working_dir_base}
 echo ${remote_1525_camera_dir_base}
 echo ${remote_213_video_dir_base}
 echo ${remote_213_photo_dir_base}
@@ -214,8 +234,10 @@ if [ "$is_nas" -eq 2 ]; then
    # 918, strangly it's format is 192.168.123.163::video/video_latest
    # --protocol=29
    echo "--dry-run admin@192.168.123.163::${remote_918_video_dir_base}/it_exists.txt"
-   sshpass -p $pw rsync --port=873 -e "ssh -p 22" --protocol=29 --dry-run --timeout=10 admin@192.168.123.163::${remote_918_video_dir_base}/it_exists.txt
    echo "sshpass -p $pw rsync --port=873 -e \"ssh -p 22\" --protocol=29 --dry-run --timeout=10 admin@192.168.123.163::${remote_918_video_dir_base}/it_exists.txt"
+   # 這個 echo 要放在 sshpass 前面。放後面的話 $? 會變成 echo 的結果 (永遠 0)，
+   # 下面的 if 就等於沒有檢查，--delete 會照跑。1525 那段本來就是這樣寫的。
+   sshpass -p $pw rsync --port=873 -e "ssh -p 22" --protocol=29 --dry-run --timeout=10 admin@192.168.123.163::${remote_918_video_dir_base}/it_exists.txt
    if [ $? -eq 0 ]; then
       sshpass -p $pw rsync --port=873 -e "ssh -p 22" -a --delete --protocol=29 "${dest_video_dir_base}/" admin@192.168.123.163::${remote_918_video_dir_base}
       echo "163::video" $?
@@ -301,6 +323,47 @@ if [ "$is_nas" -eq 3 ]; then
    fi
    echo
    echo "is_nas=${is_nas} done"
+fi
+
+
+# . go.sh camera
+#
+# camera_working 雙向同步，只有 ds918，只走家裡 LAN 的 rsync 873。
+# 和 0/1/2/3 不一樣的地方：
+#   1. 兩個方向都跑一次 (先拉下來，再推上去)
+#   2. 不能用 --delete。雙向同步分不出「這邊刪掉了」和「那邊新增了」，
+#      加了 --delete 會互相砍檔。所以刪除不會傳到另一邊，要自己兩邊各刪一次。
+#   3. -u = --update，只有比較新的檔案才會蓋過去。兩邊都改到同一個檔的話，
+#      mtime 比較新的贏，舊的那份會被蓋掉。
+if [ "$is_camera" -eq 1 ]; then
+
+   CHECKFILE="${dest_camera_working_dir_base}/it_exists.txt"
+   if [ ! -f "$CHECKFILE" ]; then
+      echo "no ${CHECKFILE} (UltraFit256 沒掛上?), stop"
+   else
+      echo "local  : ${dest_camera_working_dir_base}"
+      echo "remote : admin@192.168.123.163::${remote_918_camera_working_dir_base}"
+      echo "--dry-run admin@192.168.123.163::${remote_918_camera_working_dir_base}/it_exists.txt"
+      sshpass -p $pw rsync --port=873 -e "ssh -p 22" --protocol=29 --dry-run --timeout=10 admin@192.168.123.163::${remote_918_camera_working_dir_base}/it_exists.txt
+      if [ $? -eq 0 ]; then
+         # @eaDir 是 Synology 自己產生的縮圖目錄，不要拉到 mac 上
+         echo "    ==== pull  163 -> local"
+         sshpass -p $pw rsync --port=873 -e "ssh -p 22" -a -u -v --protocol=29 \
+          --exclude '@eaDir' --exclude '.DS_Store' --exclude '.Trashes' \
+          admin@192.168.123.163::${remote_918_camera_working_dir_base}/ "${dest_camera_working_dir_base}/"
+         echo "    pull" $?
+         echo "    ==== push  local -> 163"
+         sshpass -p $pw rsync --port=873 -e "ssh -p 22" -a -u -v --protocol=29 \
+          --exclude '@eaDir' --exclude '.DS_Store' --exclude '.Trashes' \
+          "${dest_camera_working_dir_base}/" admin@192.168.123.163::${remote_918_camera_working_dir_base}
+         echo "    push" $?
+      else
+         echo "rsync 163 fail:" $?
+      fi
+   fi
+
+   echo
+   echo "is_nas=camera done"
 fi
 
 
