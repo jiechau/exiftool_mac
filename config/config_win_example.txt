@@ -1,0 +1,25 @@
+# config/config_win_example.txt
+#
+# copy this file to 'config_win.txt' in the same directory, then edit the paths.
+#
+# config/config_win.txt 被 .gitignore 忽略，每一台 windows 自己一份。
+# 換一台 windows 就是重新複製一份、改下面兩行，go.bat 就能跑。
+#
+# 格式和 mac 的 config_vars.txt 一樣: KEY=VALUE
+#   - # 開頭的整行是註解
+#   - 行首不要有空白，= 的兩邊也不要有空白 (會變成變數名稱/值的一部分)
+#   - 路徑不用加引號
+#   - 結尾的反斜線加不加都可以，go.bat 會自己砍掉
+#   - 這個檔案裡沒有任何機密。go.bat 不需要 nas 的帳號密碼
+
+# 來源: windows 本機的工作目錄。
+#       camera_working 的正本在這裡，photoshop 的重活在這裡做。
+#       這個目錄底下要有一個空的 it_exists.txt 當哨兵檔，沒有的話 go.bat 不跑。
+local_camera_working_dir_base=C:\Users\jiech\Downloads\camera_working
+
+# 目的: nas 上的 camera_working。
+#       掛載 (檔案總管的「連線網路磁碟機」/ net use) 由外部負責，
+#       go.bat 只認這個路徑，路徑不在就直接離開，不會自己去連 nas。
+#       也可以直接寫 UNC: \DiskStation918\camera\camera_working
+#       排程執行的話 UNC 比磁碟機代號可靠 (磁碟機代號是跟著登入 session 的)。
+remote_camera_working_dir_base=T:\camera_working

@@ -1,0 +1,7 @@
+# .bat 一定要 CRLF。cmd.exe 讀 LF-only 的檔案時，多行區塊和 label 會出怪事。
+# 這台的 core.autocrlf=true 本來就會這樣做，但別台 windows 不一定有設。
+*.bat text eol=crlf
+config/config_win_example.txt text eol=crlf
+
+# go.sh / changedate_*.sh / gps_*.sh 是在 mac 上跑的，必須是 LF。
+*.sh text eol=lf

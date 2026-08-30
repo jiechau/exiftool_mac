@@ -52,3 +52,5 @@ Thumbs.db
 *.flv
 *.wmv
 
+# config/config_win.txt (go.bat 用，每台 windows 自己的路徑設定)
+config_win.txt
