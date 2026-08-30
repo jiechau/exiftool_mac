@@ -1,0 +1,22 @@
+graph LR
+
+  subgraph win["Windows PC &nbsp; (not part of this project)"]
+    W1["<img src='https://i.imgur.com/mRqWQHm.png'/>"]
+    WW["C:\Users\jiech\Downloads\camera_working <br/> Photoshop / Sequator <br/> <b>the work happens here</b>"]
+  end
+
+  subgraph nas["DS918 &nbsp; 192.168.123.163"]
+    N1["<img src='https://i.imgur.com/ecRBtpN.png'/>"]
+    NN["<b>camera/camera_working</b> <br/> rsync module path <br/> T:\camera_working when mapped"]
+  end
+
+  subgraph mac["mac &nbsp; (UltraFit256)"]
+    M1["<img src='https://i.imgur.com/mRqWQHm.png'/>"]
+    MM["<b>camera_working</b> <br/> exact copy of the NAS <br/> collect finished results here"]
+    WARN["<b>--delete points at the mac</b> <br/> anything here that is not on <br/> the NAS is deleted. <br/> the remote it_exists.txt probe <br/> is what stops an unreachable <br/> NAS from emptying it."]
+  end
+
+  WW <-.-> |"go.bat &nbsp; two-way <br/> robocopy over the T: mapped drive <br/> (separate, not in this repo)"| NN
+  NN ==> |"<b>$ . go.sh cw</b> <br/> rsync -a --delete <br/> one way, NAS to mac"| MM
+
+  style WARN fill:#fff3cd,stroke:#e0a800,color:#000

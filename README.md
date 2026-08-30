@@ -190,6 +190,8 @@ $ . go.sh camera_working     # or the short form:
 $ . go.sh cw
 ```
 
+![camera_working flow](img/img3.png)
+
 Whatever is in `camera/camera_working` on the DS918, the local folder is made to match exactly: `rsync -a --delete`, no `-u`, so a locally-newer file is overwritten too.
 
 ### The danger is reversed here
