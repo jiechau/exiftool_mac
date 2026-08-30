@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A personal media-pipeline of Bash scripts wrapping `exiftool` and `rsync`. Three jobs: reorganize phone photo dumps into a date-named local library, replicate that library to two Synology NAS boxes, and repair EXIF datetime/GPS tags by hand. There is no build, no test suite, no linter, no dependency manifest — every file is a standalone shell script. `README.md` is the user-facing narrative; read it for the *why* behind the pipeline.
+A personal media-pipeline of Bash scripts wrapping `exiftool` and `rsync`. Three jobs: reorganize phone photo dumps into a date-named local library, replicate that library to two Synology NAS boxes, and repair EXIF datetime/GPS tags by hand. One scratch folder (`camera_working`) also syncs two-way with the DS918. There is no build, no test suite, no linter, no dependency manifest — every file is a standalone shell script. `README.md` is the user-facing narrative; read it for the *why* behind the pipeline.
 
 ## Scripts must be sourced, not executed
 
@@ -21,8 +21,11 @@ macOS ships BSD `date` and a broken `rsync`; `go.sh` prepends `/opt/homebrew/bin
 
 There is no application logic to speak of — `go.sh` is one big `if [ "$is_nas" -eq N ]` dispatch over four modes, and the interesting structure is a matrix:
 
-- **Three libraries**, each a `dest_*_dir_base` var: photo, video, camera.
-- **Four modes**: `0` = collect from Dropbox into the libraries (local only); `1` = mirror over `/Volumes/` SMB mounts (DS918 only); `2` = mirror over rsync daemon port 873 on the LAN (DS918 + DS1525); `3` = mirror to DS918 over the internet.
+- **Three libraries**, each a `dest_*_dir_base` var: photo, video, camera. Plus `camera_working`, which is a two-way scratch folder rather than a library.
+- **Four numeric modes**: `0` = collect from Dropbox into the libraries (local only); `1` = mirror over `/Volumes/` SMB mounts (DS918 only); `2` = mirror over rsync daemon port 873 on the LAN (DS918 + DS1525); `3` = mirror to DS918 over the internet.
+- **One string mode**: `camera_working` (short form `cw`), the two-way sync — see below.
+
+`is_nas=$1` feeds `[ "$is_nas" -eq N ]`, a *numeric* test, so a string arg would throw `integer expression expected` four times and fall through silently. The string mode is therefore normalized up front: it sets `is_camera_working=1` and rewrites `is_nas=9` so no numeric block matches, and a `case` guard rejects anything else non-numeric with a message. **Any new string mode has to go through that same normalization.**
 
 Every path is a variable in `config/config_vars.txt`, sourced at startup. Nothing is hardcoded in `go.sh` except host IPs, usernames, and the mode structure itself. **Adding a library** therefore means: one `dest_*` var, one `remote_<host>_*` var per NAS, and one rsync block per mode — the camera library added in the most recent commit is the worked example to copy.
 
@@ -36,6 +39,12 @@ sshpass -p "$pw" rsync --port=873 --protocol=29 admin@192.168.123.163::
 
 `go.sh 0` populates `photo_latest/` and `video_latest/` only. **`camera_latest/` is organized by hand** (SD-card imports, `YYYY_MMDD_camera_event/<body>-<lens>/`, JPG alongside CR2 RAW) and only joins the pipeline at the sync stage. Don't add camera handling to mode `0`.
 
+### `camera_working` is two-way, and must stay `--delete`-free
+
+`. go.sh cw` runs rsync twice against DS918 — pull, then push — with `-u` and **no `--delete`**. This is not an oversight. A two-way sync cannot tell "deleted here" from "added there", so `--delete` on both passes makes the two runs destroy each other's files. Adding it would be silently catastrophic.
+
+The accepted consequences: deletions never propagate (remove on both sides by hand), renames surface as duplicates, and a file edited on both sides resolves to the newer mtime with the older copy lost. `@eaDir`, `.DS_Store` and `.Trashes` are excluded both ways — `@eaDir` in particular is Synology-generated and must not land on the Mac.
+
 ## Danger surface
 
 Every sync is `rsync -a --delete`, and the local library lives on a **removable drive** (`UltraFit256`). If that drive is unmounted the source path still resolves as an empty directory, and a `--delete` sync from it would erase the remote copy.
@@ -48,6 +57,7 @@ Other landmines:
 
 - **`--protocol=29` is required** on mode-2 transfers. The newer protocol stopped working against these Synology daemons on 2024/09/21. Removing it breaks the sync.
 - Mode `2` probes only the **video** module, then syncs photo and camera off that one result — a per-library probe would deadlock, since a fresh remote folder has no `it_exists.txt` until the first sync puts it there.
+- **The probe's `$?` must be read immediately.** Each reachability probe is a bare `--dry-run` rsync followed by `if [ $? -eq 0 ]`. Putting anything between them — an `echo`, a comment is fine, a command is not — makes `$?` that command's status and the guard silently stops guarding. This was a live bug in the DS918 mode-2 block (fixed 2026-08-22); the trace `echo` now goes *before* the probe.
 - `changedate_*.sh` and `gps_*.sh` all use `-overwrite_original` and mutate media in place. `changedate_mp4_batch.sh` rewrites *every* `.mp4` in the working directory with the same timestamp.
 - Timestamps are hardcoded to `+08:00` (Taiwan) throughout.
 - `-api QuickTimeUTC -ee` is mandatory on every video exiftool call; QuickTime stores dates in UTC and omitting it shifts everything by the offset.

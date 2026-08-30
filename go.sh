@@ -4,7 +4,8 @@
 # . ./go.sh 1 # write NAS (need mac local mount: /Volumes/)
 # . ./go.sh 2 # write NAS, using intranet rsync 873
 # . ./go.sh 3 # write NAS, using internet, only ds918, no ds212
-# . ./go.sh camera # camera_working 雙向同步 (only ds918, 家裡 LAN)
+# . ./go.sh camera_working # camera_working 雙向同步 (only ds918, 家裡 LAN)
+# . ./go.sh cw             # 同上，camera_working 的縮寫
 #
 # 另外注意 UltraFit256/photo_,video_ 下面要有 it_exists.txt
 #
@@ -29,24 +30,24 @@ else
    is_nas=$1 # it should be '1'
 fi
 
-# 'camera' 是雙向同步 camera_working，和 0/1/2/3 的單向備份不一樣。
+# 'camera_working' (縮寫 'cw') 是雙向同步 camera_working，和 0/1/2/3 的單向備份不一樣。
 # 這裡換成 is_nas=9，讓下面 -eq 0/1/2/3 的區塊都不會進去。
-is_camera=0
-if [ "$is_nas" = "camera" ]; then
-   is_camera=1
+is_camera_working=0
+if [ "$is_nas" = "camera_working" ] || [ "$is_nas" = "cw" ]; then
+   is_camera_working=1
    is_nas=9
 fi
 # 下面的區塊都是用 -eq 比數字，非數字會噴 "integer expression expected"
 case "$is_nas" in
    ''|*[!0-9]*)
-      echo "bad arg: '$1' (should be 0,1,2,3 or camera)"
+      echo "bad arg: '$1' (should be 0,1,2,3 or camera_working/cw)"
       return
       #exit 0
       ;;
 esac
 
 echo "args number = $#, OK"
-echo "is_nas=${is_nas} (should be 0,1,2,3 or camera)"
+echo "is_nas=${is_nas} (should be 0,1,2,3 or camera_working/cw)"
 echo ""
 
 
@@ -326,7 +327,7 @@ if [ "$is_nas" -eq 3 ]; then
 fi
 
 
-# . go.sh camera
+# . go.sh camera_working  ( . go.sh cw )
 #
 # camera_working 雙向同步，只有 ds918，只走家裡 LAN 的 rsync 873。
 # 和 0/1/2/3 不一樣的地方：
@@ -335,7 +336,7 @@ fi
 #      加了 --delete 會互相砍檔。所以刪除不會傳到另一邊，要自己兩邊各刪一次。
 #   3. -u = --update，只有比較新的檔案才會蓋過去。兩邊都改到同一個檔的話，
 #      mtime 比較新的贏，舊的那份會被蓋掉。
-if [ "$is_camera" -eq 1 ]; then
+if [ "$is_camera_working" -eq 1 ]; then
 
    CHECKFILE="${dest_camera_working_dir_base}/it_exists.txt"
    if [ ! -f "$CHECKFILE" ]; then
@@ -363,7 +364,7 @@ if [ "$is_camera" -eq 1 ]; then
    fi
 
    echo
-   echo "is_nas=camera done"
+   echo "is_nas=camera_working done"
 fi
 
 

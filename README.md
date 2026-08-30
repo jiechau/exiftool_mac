@@ -8,7 +8,7 @@ Here you'll need some tools. For automatically collecting and uploading photos f
 The repo does three jobs:
 
 1. **Re-organize** scattered phone uploads into a tidy, date-named local library (`go.sh 0`)
-2. **Replicate** that organized library out to remote NAS servers (`go.sh 1` / `2` / `3`)
+2. **Replicate** that organized library out to remote NAS servers (`go.sh 1` / `2` / `3`), and keep a scratch folder in two-way sync with the NAS (`go.sh cw`)
 3. **Repair EXIF metadata** — datetime and GPS — on files whose tags are missing or wrong (the `changedate_*.sh` and `gps_*.sh` helpers)
 
 - (a) upload photos
@@ -67,8 +67,11 @@ cd ~/life_codes/exiftool_mac
 | `1` | mirror to NAS over mounted SMB/AFP shares under `/Volumes/` | DS918 |
 | `2` | mirror to NAS over rsync daemon port 873, on the home LAN | DS918 + DS1525 |
 | `3` | mirror to DS918 over the internet | DS918 |
+| `camera_working` (or `cw`) | **two-way** sync of the `camera_working` scratch folder, over the LAN | DS918 |
 
 Modes `1` and `2` do the same thing by different transports; `2` is simpler because nothing has to be mounted in Finder first. Mode `3` is the away-from-home path and only covers DS918.
+
+`camera_working` is the odd one out — see [Two-way sync: `camera_working`](#two-way-sync-camera_working). Everything else is a one-way mirror.
 
 > Historical note: DS212 (`192.168.123.162`) was a third target. It is retired — its blocks are commented out in `go.sh` and `config/config_vars.txt` rather than deleted.
 
@@ -171,8 +174,31 @@ It exists because the local library lives on a removable drive (`UltraFit256`). 
 - `go.sh 0` only writes into a destination whose `it_exists.txt` is present
 - `go.sh 1` checks the sentinel on the mounted `/Volumes/...` share before mirroring photo and video (for camera it checks the share directory plus the local sentinel, since a fresh remote share has no sentinel yet)
 - `go.sh 2` and `3` use the remote sentinel as the reachability probe, and check the **local** `$dest_camera_dir_base/it_exists.txt` before mirroring camera
+- `go.sh cw` refuses to run at all without the local `$dest_camera_working_dir_base/it_exists.txt`
 
 If a sync mysteriously does nothing, a missing `it_exists.txt` is the first thing to check.
+
+
+## Two-way sync: `camera_working`
+
+`camera_working/` is a scratch area shared with the DS918 — somewhere to park a shoot that is still being culled, and pick it up again from either machine. Unlike every other path in this repo it syncs **both ways**:
+
+```shell
+$ . go.sh camera_working     # or the short form:
+$ . go.sh cw
+```
+
+It checks the local sentinel, probes the remote, then runs rsync twice — pull first, then push — against `camera/camera_working` on the DS918 only.
+
+**There is no `--delete` here, and that is deliberate.** A two-way sync cannot distinguish "deleted on this side" from "added on the other side"; with `--delete` on both passes the two runs destroy each other's files. The consequences are worth internalising:
+
+- **Deletions do not propagate.** Remove a file on one side and the next run copies it straight back. To really delete something, delete it on both sides.
+- **A rename looks like a duplicate.** The new name arrives, the old name never leaves.
+- **Editing the same file on both sides loses one version.** `-u` (`--update`) means the newer mtime wins; the older copy is overwritten with no conflict file kept.
+
+`@eaDir` (Synology's thumbnail directories), `.DS_Store` and `.Trashes` are excluded in both directions.
+
+If you need real bidirectional sync with deletion tracking, plain rsync cannot do it — that needs a tool that keeps state between runs, such as `unison` or `rclone bisync`.
 
 
 ## EXIF repair tools
@@ -229,10 +255,13 @@ problem_dir_base=/Users/jiechau/exif_working_dir/_tmp_exiftool_mac/problem_ones
 dest_photo_dir_base=/Users/jiechau/exif_working_dir/UltraFit256/photo_latest
 dest_video_dir_base=/Users/jiechau/exif_working_dir/UltraFit256/video_latest
 dest_camera_dir_base=/Users/jiechau/exif_working_dir/UltraFit256/camera_latest
+# two-way scratch folder, . go.sh cw
+dest_camera_working_dir_base=/Users/jiechau/exif_working_dir/UltraFit256/camera_working
 # remote rsync module paths
 remote_918_video_dir_base=video/video_latest
 remote_918_photo_dir_base=photo/photo_latest
 remote_918_camera_dir_base=camera/camera_latest
+remote_918_camera_working_dir_base=camera/camera_working
 remote_1525_video_dir_base=DSfile/_home/_jie/video/video_latest
 remote_1525_photo_dir_base=DSfile/_home/_jie/photo/photo_latest
 remote_1525_camera_dir_base=DSfile/_home/_jie/camera/camera_latest
