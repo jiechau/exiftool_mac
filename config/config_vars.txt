@@ -6,7 +6,7 @@ problem_dir_base=/Users/jiechau/exif_working_dir/_tmp_exiftool_mac/problem_ones
 dest_photo_dir_base=/Users/jiechau/exif_working_dir/UltraFit256/photo_latest
 dest_video_dir_base=/Users/jiechau/exif_working_dir/UltraFit256/video_latest
 dest_camera_dir_base=/Users/jiechau/exif_working_dir/UltraFit256/camera_latest
-# camera_working: . go.sh camera 專用，雙向同步
+# camera_working: . go.sh camera_working (cw) 專用，方向是 nas -> 本機
 dest_camera_working_dir_base=/Users/jiechau/exif_working_dir/UltraFit256/camera_working
 remote_918_video_dir_base=video/video_latest
 remote_918_photo_dir_base=photo/photo_latest

@@ -8,7 +8,7 @@ Here you'll need some tools. For automatically collecting and uploading photos f
 The repo does three jobs:
 
 1. **Re-organize** scattered phone uploads into a tidy, date-named local library (`go.sh 0`)
-2. **Replicate** that organized library out to remote NAS servers (`go.sh 1` / `2` / `3`), and keep a scratch folder in two-way sync with the NAS (`go.sh cw`)
+2. **Replicate** that organized library out to remote NAS servers (`go.sh 1` / `2` / `3`), and pull a scratch folder back down from the NAS (`go.sh cw`)
 3. **Repair EXIF metadata** — datetime and GPS — on files whose tags are missing or wrong (the `changedate_*.sh` and `gps_*.sh` helpers)
 
 - (a) upload photos
@@ -67,11 +67,11 @@ cd ~/life_codes/exiftool_mac
 | `1` | mirror to NAS over mounted SMB/AFP shares under `/Volumes/` | DS918 |
 | `2` | mirror to NAS over rsync daemon port 873, on the home LAN | DS918 + DS1525 |
 | `3` | mirror to DS918 over the internet | DS918 |
-| `camera_working` (or `cw`) | **two-way** sync of the `camera_working` scratch folder, over the LAN | DS918 |
+| `camera_working` (or `cw`) | mirror the `camera_working` scratch folder **down from** the NAS | DS918 |
 
 Modes `1` and `2` do the same thing by different transports; `2` is simpler because nothing has to be mounted in Finder first. Mode `3` is the away-from-home path and only covers DS918.
 
-`camera_working` is the odd one out — see [Two-way sync: `camera_working`](#two-way-sync-camera_working). Everything else is a one-way mirror.
+Every mode is a one-way `rsync -a --delete` mirror. `camera_working` is the odd one out only in its **direction** — it is the one mode that writes to the Mac instead of reading from it. See [Pulling back: `camera_working`](#pulling-back-camera_working).
 
 > Historical note: DS212 (`192.168.123.162`) was a third target. It is retired — its blocks are commented out in `go.sh` and `config/config_vars.txt` rather than deleted.
 
@@ -174,31 +174,37 @@ It exists because the local library lives on a removable drive (`UltraFit256`). 
 - `go.sh 0` only writes into a destination whose `it_exists.txt` is present
 - `go.sh 1` checks the sentinel on the mounted `/Volumes/...` share before mirroring photo and video (for camera it checks the share directory plus the local sentinel, since a fresh remote share has no sentinel yet)
 - `go.sh 2` and `3` use the remote sentinel as the reachability probe, and check the **local** `$dest_camera_dir_base/it_exists.txt` before mirroring camera
-- `go.sh cw` refuses to run at all without the local `$dest_camera_working_dir_base/it_exists.txt`
+- `go.sh cw` checks both: the local sentinel (is UltraFit256 mounted?) and the remote one (is the NAS folder really there?). For `cw` the **remote** check is the load-bearing one — see below
 
 If a sync mysteriously does nothing, a missing `it_exists.txt` is the first thing to check.
 
 
-## Two-way sync: `camera_working`
+## Pulling back: `camera_working`
 
-`camera_working/` is a scratch area shared with the DS918 — somewhere to park a shoot that is still being culled, and pick it up again from either machine. Unlike every other path in this repo it syncs **both ways**:
+`camera_working/` is a scratch area for heavy editing — Photoshop work that happens on the Windows machine, not the Mac. The Windows box syncs itself against the NAS folder (its own `go.bat`, outside this repo); the Mac's only job is to collect the finished results.
+
+So this mode runs in the opposite direction to everything else — **NAS → Mac**:
 
 ```shell
 $ . go.sh camera_working     # or the short form:
 $ . go.sh cw
 ```
 
-It checks the local sentinel, probes the remote, then runs rsync twice — pull first, then push — against `camera/camera_working` on the DS918 only.
+Whatever is in `camera/camera_working` on the DS918, the local folder is made to match exactly: `rsync -a --delete`, no `-u`, so a locally-newer file is overwritten too.
 
-**There is no `--delete` here, and that is deliberate.** A two-way sync cannot distinguish "deleted on this side" from "added on the other side"; with `--delete` on both passes the two runs destroy each other's files. The consequences are worth internalising:
+### The danger is reversed here
 
-- **Deletions do not propagate.** Remove a file on one side and the next run copies it straight back. To really delete something, delete it on both sides.
-- **A rename looks like a duplicate.** The new name arrives, the old name never leaves.
-- **Editing the same file on both sides loses one version.** `-u` (`--update`) means the newer mtime wins; the older copy is overwritten with no conflict file kept.
+Every other sync in this repo reads from the Mac and writes to the NAS, so a missing local drive is what threatens the remote copy. `cw` inverts that. **`--delete` now points at the Mac.**
 
-`@eaDir` (Synology's thumbnail directories), `.DS_Store` and `.Trashes` are excluded in both directions.
+- **Anything in the local `camera_working/` that is not on the NAS gets deleted.** Don't keep Mac-only work in there — one run and it's gone.
+- **The remote `it_exists.txt` probe is the real guard.** If the NAS folder is missing, renamed, or the box is off, the probe fails and the whole block is skipped. Without that check an unreachable NAS would empty the local folder.
+- The local sentinel still matters too, for a different reason: if UltraFit256 isn't mounted the path still resolves, and the pull would quietly dump gigabytes onto the internal disk.
 
-If you need real bidirectional sync with deletion tracking, plain rsync cannot do it — that needs a tool that keeps state between runs, such as `unison` or `rclone bisync`.
+Five things are excluded, from both ends of the workflow: `@eaDir` (Synology's thumbnail directories), `.DS_Store` and `.Trashes` from the Mac side, and `Thumbs.db` / `desktop.ini` from the Windows side.
+
+One catch worth knowing: rsync **protects excluded files on the receiving side from `--delete`**. That is convenient for your local `.DS_Store` files, which survive. But it also means adding a new exclude does not clean up what has already been pulled down — those copies become permanently immune to the sync and have to be deleted by hand once.
+
+> This mode used to be a two-way sync. It was changed to a one-way pull on 2026-08-31, once the editing work moved to Windows.
 
 
 ## EXIF repair tools
@@ -255,7 +261,7 @@ problem_dir_base=/Users/jiechau/exif_working_dir/_tmp_exiftool_mac/problem_ones
 dest_photo_dir_base=/Users/jiechau/exif_working_dir/UltraFit256/photo_latest
 dest_video_dir_base=/Users/jiechau/exif_working_dir/UltraFit256/video_latest
 dest_camera_dir_base=/Users/jiechau/exif_working_dir/UltraFit256/camera_latest
-# two-way scratch folder, . go.sh cw
+# scratch folder pulled back from the NAS, . go.sh cw
 dest_camera_working_dir_base=/Users/jiechau/exif_working_dir/UltraFit256/camera_working
 # remote rsync module paths
 remote_918_video_dir_base=video/video_latest

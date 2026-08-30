@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A personal media-pipeline of Bash scripts wrapping `exiftool` and `rsync`. Three jobs: reorganize phone photo dumps into a date-named local library, replicate that library to two Synology NAS boxes, and repair EXIF datetime/GPS tags by hand. One scratch folder (`camera_working`) also syncs two-way with the DS918. There is no build, no test suite, no linter, no dependency manifest — every file is a standalone shell script. `README.md` is the user-facing narrative; read it for the *why* behind the pipeline.
+A personal media-pipeline of Bash scripts wrapping `exiftool` and `rsync`. Three jobs: reorganize phone photo dumps into a date-named local library, replicate that library to two Synology NAS boxes, and repair EXIF datetime/GPS tags by hand. One scratch folder (`camera_working`) is pulled back down from the DS918 — the only sync that writes to the Mac. There is no build, no test suite, no linter, no dependency manifest — every file is a standalone shell script. `README.md` is the user-facing narrative; read it for the *why* behind the pipeline.
 
 ## Scripts must be sourced, not executed
 
@@ -21,9 +21,9 @@ macOS ships BSD `date` and a broken `rsync`; `go.sh` prepends `/opt/homebrew/bin
 
 There is no application logic to speak of — `go.sh` is one big `if [ "$is_nas" -eq N ]` dispatch over four modes, and the interesting structure is a matrix:
 
-- **Three libraries**, each a `dest_*_dir_base` var: photo, video, camera. Plus `camera_working`, which is a two-way scratch folder rather than a library.
+- **Three libraries**, each a `dest_*_dir_base` var: photo, video, camera. Plus `camera_working`, a scratch folder that travels the other way.
 - **Four numeric modes**: `0` = collect from Dropbox into the libraries (local only); `1` = mirror over `/Volumes/` SMB mounts (DS918 only); `2` = mirror over rsync daemon port 873 on the LAN (DS918 + DS1525); `3` = mirror to DS918 over the internet.
-- **One string mode**: `camera_working` (short form `cw`), the two-way sync — see below.
+- **One string mode**: `camera_working` (short form `cw`), the NAS→Mac pull — see below.
 
 `is_nas=$1` feeds `[ "$is_nas" -eq N ]`, a *numeric* test, so a string arg would throw `integer expression expected` four times and fall through silently. The string mode is therefore normalized up front: it sets `is_camera_working=1` and rewrites `is_nas=9` so no numeric block matches, and a `case` guard rejects anything else non-numeric with a message. **Any new string mode has to go through that same normalization.**
 
@@ -39,11 +39,15 @@ sshpass -p "$pw" rsync --port=873 --protocol=29 admin@192.168.123.163::
 
 `go.sh 0` populates `photo_latest/` and `video_latest/` only. **`camera_latest/` is organized by hand** (SD-card imports, `YYYY_MMDD_camera_event/<body>-<lens>/`, JPG alongside CR2 RAW) and only joins the pipeline at the sync stage. Don't add camera handling to mode `0`.
 
-### `camera_working` is two-way, and must stay `--delete`-free
+### `camera_working` runs backwards, and `--delete` points at the Mac
 
-`. go.sh cw` runs rsync twice against DS918 — pull, then push — with `-u` and **no `--delete`**. This is not an oversight. A two-way sync cannot tell "deleted here" from "added there", so `--delete` on both passes makes the two runs destroy each other's files. Adding it would be silently catastrophic.
+`. go.sh cw` is a single `rsync -a --delete` **from** DS918 **to** the local folder — the reverse of every other mode. The Photoshop work happens on a Windows machine that syncs itself against the NAS folder; the Mac only collects results. No `-u`: a locally-newer file is overwritten, because the goal is an exact copy of the NAS.
 
-The accepted consequences: deletions never propagate (remove on both sides by hand), renames surface as duplicates, and a file edited on both sides resolves to the newer mtime with the older copy lost. `@eaDir`, `.DS_Store` and `.Trashes` are excluded both ways — `@eaDir` in particular is Synology-generated and must not land on the Mac.
+This inverts the repo's usual hazard. Elsewhere a missing local drive endangers the remote; here **an unreachable NAS endangers the local folder**. The remote `it_exists.txt` probe is therefore load-bearing, not a convenience — if it fails the block must skip entirely, or the Mac folder gets emptied. The local sentinel is still checked as well, to avoid dumping gigabytes onto the internal disk when UltraFit256 is unmounted.
+
+Excluded: `@eaDir` (Synology-generated), `.DS_Store`, `.Trashes`, and `Thumbs.db` / `desktop.ini` (from the Windows box that owns the folder's content). Note rsync protects excluded files on the *receiver* from `--delete`, so adding an exclude never removes copies already pulled down — they go permanently stale and must be deleted by hand once.
+
+It was a two-way sync until 2026-08-31. If you are tempted to restore the push pass, note that a two-way rsync cannot use `--delete` at all — the two passes destroy each other's files.
 
 ## Danger surface
 
