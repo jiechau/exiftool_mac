@@ -181,7 +181,7 @@ If a sync mysteriously does nothing, a missing `it_exists.txt` is the first thin
 
 ## Pulling back: `camera_working`
 
-`camera_working/` is a scratch area for heavy editing — Photoshop work that happens on the Windows machine, not the Mac. The Windows box syncs itself against the NAS folder (its own `go.bat`, outside this repo); the Mac's only job is to collect the finished results.
+`camera_working/` is a scratch area for heavy editing — Photoshop work that happens on the Windows machine, not the Mac. The Windows box is the master copy and pushes itself up to the NAS with `go.bat cw` (see [The Windows end: `go.bat`](#the-windows-end-gobat)); the Mac's only job is to collect the finished results.
 
 So this mode runs in the opposite direction to everything else — **NAS → Mac**:
 
@@ -207,6 +207,30 @@ Five things are excluded, from both ends of the workflow: `@eaDir` (Synology's t
 One catch worth knowing: rsync **protects excluded files on the receiving side from `--delete`**. That is convenient for your local `.DS_Store` files, which survive. But it also means adding a new exclude does not clean up what has already been pulled down — those copies become permanently immune to the sync and have to be deleted by hand once.
 
 > This mode used to be a two-way sync. It was changed to a one-way pull on 2026-08-31, once the editing work moved to Windows.
+
+
+## The Windows end: `go.bat`
+
+`go.bat` is the other half of `cw`, and the only thing in this repo that does not run on the Mac. It pushes the Windows working folder up to the NAS, so the full chain is:
+
+```
+windows (master) --go.bat cw--> nas --. go.sh cw--> mac
+```
+
+```bat
+C:\...\exiftool_mac> go.bat cw
+C:\...\exiftool_mac> set GO_DRY=1 & go.bat cw    :: list only, change nothing
+```
+
+It takes `cw` and nothing else — modes `0`/`1`/`2`/`3` are Mac-only. Note it is **executed**, not sourced: `go.bat cw`, never `. go.bat cw`. That is the opposite of `go.sh`.
+
+The engine is `robocopy /MIR`, which is `rsync -a --delete` in Windows clothing. `/FFT` is not optional — it gives timestamps a 2-second tolerance (rsync's `--modify-window`), and without it the second-level granularity on the NAS side makes every file look newer on every run, so the whole folder re-transfers each time.
+
+**The danger points at the NAS here, and then keeps going.** `/MIR` deletes, so an empty or mistyped local folder empties the NAS folder — and the next `. go.sh cw` faithfully mirrors that emptiness down onto the Mac. One bad run takes out all three copies. So `go.bat` checks both sentinels and refuses to start if either is missing: the local one (is this really the working folder?) and the remote one (is the share actually mounted?).
+
+Paths come from `config/config_win.txt`, which is **gitignored** — each Windows box keeps its own. `go.bat` never touches credentials or mounting; if the NAS path is not there, it stops.
+
+> Mapped drive letters are per-logon-session. A `T:` connected in Explorer does **not** exist inside an SSH session, a scheduled task, or an elevated shell — each gets its own session and sees no `T:` at all. For anything non-interactive, point `remote_camera_working_dir_base` at the UNC path (`\DiskStation918\camera\camera_working`) and have whatever drives the run establish credentials first with `net use`.
 
 
 ## EXIF repair tools
@@ -249,6 +273,8 @@ exiftool -api QuickTimeUTC -ee -G aaa.mp4 | grep -i gps
 | `config/config_sourcedir.txt` | Dropbox folders to drain, one per line | yes |
 | `config/config_secrets.txt` | NAS hosts, ports, passwords | **no** (gitignored) |
 | `config/config_secrets_example.txt` | template for the above | yes |
+| `config/config_win.txt` | Windows paths for `go.bat` | **no** (gitignored) |
+| `config/config_win_example.txt` | template for the above | yes |
 
 Both config files are `.`-sourced by `go.sh`, so they are shell assignments — no spaces around `=`, and `#` comments out a line.
 
