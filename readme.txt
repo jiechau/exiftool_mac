@@ -26,6 +26,32 @@ cd life_codes/exiftool_mac
 # 注意 0/1/2/3 都是 本機 -> nas
 # 只有 cw 是 nas -> 本機，方向相反
 
+windows (DS1525W。camera_working 的正本在這台，photoshop 在這裡做)
+需要的東西: 沒有。robocopy 是 windows 內建的，不用裝 rsync，也不用裝 exiftool
+
+cd C:\Users\jiech\OneDrive\elaine_jie\wexiftool_mac
+go.bat cw                   # 本機 camera_working -> nas，單向，nas 會變成和本機
+                            # 一模一樣 (含刪除)。跑完再去 mac 上跑 . go.sh cw
+
+set "GO_DRY=1" & go.bat cw  # 只列出會做什麼，不真的動。心裡毛毛的時候先跑這個
+set "GO_DRY=" & go.bat cw   # 關掉 (或是直接開一個新的 cmd 視窗)
+# 引號不要省略。寫成 set GO_DRY= & go.bat cw 的話，& 前面那個空白會變成值，
+# GO_DRY 還是算「有定義」，就一直停在 dry run，看起來有跑其實什麼都沒動
+
+# 從 mac ssh 進來的話，前面要多跑一行 mnt.bat:
+ssh -i ~/.ssh/id_rsa_rog jiech@192.168.123.167
+cd C:\Users\jiech\OneDrive\elaine_jie\wexiftool_mac
+mnt.bat                     # 把 T: 掛起來。每次 ssh 進來都要跑一次
+go.bat cw
+
+# 為什麼 ssh 要多這一行:
+# 磁碟機代號是跟著 logon session 走的。ssh 進來會拿到自己的 session，
+# 檔案總管裡面看到的那個 T:，在 ssh 的 session 裡面根本不存在
+# (dir T:\ 會說「系統找不到指定的路徑」)。
+# 坐在機器前面用 cmd 的話不用跑，檔案總管已經掛好了。
+
+# 整條鏈的方向:
+# windows (正本) --go.bat cw--> nas --. go.sh cw--> mac
 
 三個 library + 一個工作區
 ========================
@@ -33,9 +59,10 @@ cd life_codes/exiftool_mac
 photo_latest   go.sh 0 從 Dropbox 收進來，自動改檔名
 video_latest   同上
 camera_latest  相機 SD 卡，自己手動整理 (YYYY_MMDD_camera_event/機身-鏡頭/)，go.sh 0 不管它
-camera_working windows 那台做 photoshop 的地方，windows 自己和 nas 同步 (go.bat)，
-               mac 只負責用 . go.sh cw 把結果抓回來。--delete 砍的是本機，
-               本機不要放任何只有本機有的東西。
+camera_working windows 那台做 photoshop 的地方，正本在 windows。
+               windows 用 go.bat cw 往 nas 推 (單向，nas 完全比照 windows)，
+               mac 再用 . go.sh cw 把結果抓回來。windows -> nas -> mac。
+               --delete 砍的都是下游，mac 本機不要放任何只有本機有的東西。
 
 DS212 (192.168.123.162) 已經退休了，go.sh 和 config_vars.txt 裡面是註解掉不是刪掉。
 
@@ -62,6 +89,19 @@ host::module/subdir 的第一段是 Synology 分享資料夾的名字，不是�
 列出某台實際 export 了什麼:
 sshpass -p "$pw" rsync --port=873 --protocol=29 admin@192.168.123.163::
 
+ssh 進 windows 之後 dir T:\ 說「系統找不到指定的路徑」:
+磁碟機代號是跟著 logon session 的。ssh 會拿到自己的 session，檔案總管那個 T:
+在裡面不存在。跑 mnt.bat 掛起來，每次 ssh 進來都要跑一次。
+工作排程器、和「以系統管理員身分執行」也是同樣的情形。
+
+go.bat 說 STOP: no T:\camera_working\it_exists.txt:
+T: 沒掛上，或掛上了但 nas 那個資料夾不見了。先跑 mnt.bat。
+這個檢查是故意的。go.bat 是 robocopy /MIR，來源要是空的或路徑打錯，nas 會被
+清空，接著 mac 跑 . go.sh cw 又會把 mac 清空。三份一起沒。
+
+go.bat 每次都重傳整個資料夾:
+看 robocopy 有沒有 /FFT。NTFS 的時間戳是 100ns，nas 走 SMB 只有秒級，
+沒有 2 秒的容差的話每個檔案每次都看起來比較新。等於 rsync 的 --modify-window。
 
 scripts
 =======
@@ -79,6 +119,14 @@ gps_hby.sh
 gps_hess.sh
 
 # 這些都是 -overwrite_original，直接改原檔
+
+go.bat                  windows 專用。go.bat cw = 本機 camera_working -> nas
+                        只吃 cw 一個參數，0/1/2/3 是 mac 的。
+                        是「執行」的，不是 source (不要寫 . go.bat cw)
+mnt.bat                 windows 專用。把 T: 掛起來，ssh 進來的時候要先跑這支。
+                        windows 這端唯一會用到 nas 帳密的地方，
+                        帳號在 config/config_win.txt，密碼讀 config_secrets.txt
+                        的 pw (就是 . go.sh 2 在用的那一組，沒有第二份)
 
 
 README

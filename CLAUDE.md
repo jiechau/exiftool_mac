@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A personal media-pipeline of Bash scripts wrapping `exiftool` and `rsync`. Three jobs: reorganize phone photo dumps into a date-named local library, replicate that library to two Synology NAS boxes, and repair EXIF datetime/GPS tags by hand. One scratch folder (`camera_working`) is pulled back down from the DS918 — the only sync that writes to the Mac. There is no build, no test suite, no linter, no dependency manifest — every file is a standalone shell script. `README.md` is the user-facing narrative; read it for the *why* behind the pipeline.
+A personal media-pipeline of Bash scripts wrapping `exiftool` and `rsync`. Three jobs: reorganize phone photo dumps into a date-named local library, replicate that library to two Synology NAS boxes, and repair EXIF datetime/GPS tags by hand. One scratch folder (`camera_working`) is pulled back down from the DS918 — the only sync that writes to the Mac. There is no build, no test suite, no linter, no dependency manifest — every file is a standalone script. Almost all of them are Bash on macOS; the two `.bat` files are the Windows end of `camera_working` and are the exception to every rule below. `README.md` is the user-facing narrative; read it for the *why* behind the pipeline.
 
 ## Scripts must be sourced, not executed
 
@@ -49,6 +49,35 @@ Excluded: `@eaDir` (Synology-generated), `.DS_Store`, `.Trashes`, and `Thumbs.db
 
 It was a two-way sync until 2026-08-31. If you are tempted to restore the push pass, note that a two-way rsync cannot use `--delete` at all — the two passes destroy each other's files.
 
+## The Windows end: `go.bat` and `mnt.bat`
+
+Two `.bat` files, the other half of `cw`. They invert most of this file's assumptions, so read this before editing either.
+
+- **Executed, not sourced.** `go.bat cw`, never `. go.bat cw` — the opposite of `go.sh`'s contract. Nothing here uses `return` and there are no aliases to preserve.
+- **`go.bat` takes `cw` and nothing else** — one argument, exactly `cw`. Modes `0`/`1`/`2`/`3` stay Mac-only and print usage. Extra arguments are rejected, mirroring `go.sh`'s `$# -ne 1`.
+- **`robocopy /MIR` is `rsync -a --delete`.** Direction is Windows → NAS, and Windows holds the master copy. There is no `/XO`: an exact mirror is the point, so a NAS-newer file is overwritten too. Do not add it — that was the old two-way design and it is gone.
+- **`/FFT` is mandatory**, for the same class of reason `--protocol=29` is. NTFS keeps 100ns timestamps, the Synology over SMB only second-level; without a 2-second tolerance every file looks newer on every run and the whole folder re-transfers. It is rsync's `--modify-window`.
+- **Robocopy exit codes are not Unix.** 0–7 all mean success (1 = copied, 2 = extras in destination, 4 = mismatch); only `>= 8` is failure. The guard is `if %RC% GEQ 8` — `if errorlevel 1` would report every successful sync as an error. `rc=2` is routine here: it is `@eaDir` being counted as an extra.
+- **Excluded items are not purged on the destination**, exactly as in rsync. That is what keeps `/XD @eaDir` from deleting Synology's thumbnails on every run.
+
+### The danger cascades
+
+`/MIR` deletes on the **NAS** side, and `. go.sh cw` then mirrors the NAS onto the Mac. An empty or mistyped local Windows folder therefore empties the NAS folder, and the next Mac pull empties the Mac folder. **One bad run takes out all three copies.** Both `it_exists.txt` sentinels are checked before robocopy is invoked for precisely this reason, and here the *source* one is the load-bearing check. `set "GO_DRY=1"` switches to `robocopy /L` — quoted, because `set GO_DRY=1 & ...` stores the trailing space and a later bare `set GO_DRY=` then fails to clear it, silently pinning the script in dry-run.
+
+### Drive letters are per-logon-session
+
+The one that wastes an afternoon. A `T:` connected in Explorer does **not** exist inside an SSH login, a scheduled task, or an elevated shell — each gets its own logon session. `dir T:\` there reports "path not found", while `net use` may still *list* the mapping as Unavailable, because listing and connecting are different things. Key-based SSH compounds it: the token carries no password, so even the UNC path fails until something authenticates the server.
+
+`mnt.bat` is the fix, and the only Windows script that touches credentials (`nas_drive` / `nas_unc` / `nas_user` from `config_win.txt`, `$pw` from `config_secrets.txt`). It is idempotent, and it **must not call `net use /delete`** — that drops a remembered mapping account-wide, not just for the session. It authenticates the server and retries instead, which clears a dead drive letter on its own.
+
+`go.bat` deliberately knows none of this: it takes a path and checks whether it is there.
+
+### Windows config
+
+`config/config_win.txt` is **gitignored** — every Windows box keeps its own, which is why its paths are not committed the way `config_vars.txt`'s are. `config/config_win_example.txt` is the template and must be updated alongside any new key. Both files are read with `for /f "eol=# tokens=1,* delims=="`, so leading whitespace or spaces around `=` will break them, and a value containing `%` or `^` will not survive expansion.
+
+`.gitattributes` pins `*.bat` to CRLF and `*.sh` to LF. cmd.exe misparses LF-only batch files around multi-line blocks and labels, so that rule is not cosmetic.
+
 ## Danger surface
 
 Every sync is `rsync -a --delete`, and the local library lives on a **removable drive** (`UltraFit256`). If that drive is unmounted the source path still resolves as an empty directory, and a `--delete` sync from it would erase the remote copy.
@@ -69,6 +98,7 @@ Other landmines:
 ## Conventions
 
 - **Comments are bilingual.** Explanatory notes are frequently in Traditional Chinese, often recording *why* a workaround exists (e.g. the `--protocol=29` note). Match the surrounding language when editing a block.
+- **The `.bat` files are the exception: ASCII English only.** `go.bat` and `mnt.bat` get read through a console (`type mnt.bat` over SSH), and a Windows console's codepage is not something the repo can control — at cp950 the UTF-8 Chinese comes out as mojibake. Everything else in the repo is read in an editor, so it stays bilingual. Do not "restore" Chinese comments to the `.bat` files; put the Chinese explanation in `readme.txt` or `README.md` instead.
 - **Retired config is commented, not deleted.** DS212 (`192.168.123.162`, the `remote_213_*` vars) was a third NAS target; its blocks survive commented out in both `go.sh` and `config/config_vars.txt`. Leave them.
 - The `changedate_mp4.sh` / `changedate_mov.sh` scripts require their target to be renamed to literally `aaa.mp4` / `aaa.mov`.
 - `gps_*.sh` hardcode absolute paths to their reference clips in `gps_sample/`. Those checked-in media files are not test fixtures — each *is* a saved GPS coordinate, copied onto target files via `-tagsFromFile`. Do not remove them.
@@ -76,6 +106,8 @@ Other landmines:
 ## Secrets
 
 `config/config_secrets.txt` is gitignored and sourced by `go.sh`. Modes `2` and `3` read exactly five vars from it — `$pw` (DS918 LAN), `$pw_1525` (DS1525 LAN), and `$pi_public` / `$pp_public` / `$pw_public` (DS918 over the internet); modes `0` and `1` need none. `config/config_secrets_example.txt` mirrors that set and should be updated alongside any new credential.
+
+`mnt.bat` on Windows parses the same file for `$pw` — the same DS918 `admin` password mode `2` uses, deliberately not a second copy under a new name. If you add a Windows credential, reuse an existing key before inventing one; two keys for one account drift apart. Note the file is *parsed* there, not sourced, so it must stay plain `KEY=VALUE` — no shell quoting, no `export`, or the batch parser takes the quotes literally.
 
 LAN hosts and usernames (`admin@192.168.123.163`, `jie@192.168.123.164`) are hardcoded in `go.sh`, not in the secrets file — only the public endpoint is configurable.
 

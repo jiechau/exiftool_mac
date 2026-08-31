@@ -181,7 +181,7 @@ If a sync mysteriously does nothing, a missing `it_exists.txt` is the first thin
 
 ## Pulling back: `camera_working`
 
-`camera_working/` is a scratch area for heavy editing — Photoshop work that happens on the Windows machine, not the Mac. The Windows box is the master copy and pushes itself up to the NAS with `go.bat cw` (see [The Windows end: `go.bat`](#the-windows-end-gobat)); the Mac's only job is to collect the finished results.
+`camera_working/` is a scratch area for heavy editing — Photoshop work that happens on the Windows machine, not the Mac. The Windows box is the master copy and pushes itself up to the NAS with `go.bat cw` (see [The Windows end: `go.bat` and `mnt.bat`](#the-windows-end-gobat-and-mntbat)); the Mac's only job is to collect the finished results.
 
 So this mode runs in the opposite direction to everything else — **NAS → Mac**:
 
@@ -209,17 +209,12 @@ One catch worth knowing: rsync **protects excluded files on the receiving side f
 > This mode used to be a two-way sync. It was changed to a one-way pull on 2026-08-31, once the editing work moved to Windows.
 
 
-## The Windows end: `go.bat`
+## The Windows end: `go.bat` and `mnt.bat`
 
 `go.bat` is the other half of `cw`, and the only thing in this repo that does not run on the Mac. It pushes the Windows working folder up to the NAS, so the full chain is:
 
 ```
 windows (master) --go.bat cw--> nas --. go.sh cw--> mac
-```
-
-```bat
-C:\...\exiftool_mac> go.bat cw
-C:\...\exiftool_mac> set GO_DRY=1 & go.bat cw    :: list only, change nothing
 ```
 
 It takes `cw` and nothing else — modes `0`/`1`/`2`/`3` are Mac-only. Note it is **executed**, not sourced: `go.bat cw`, never `. go.bat cw`. That is the opposite of `go.sh`.
@@ -230,7 +225,33 @@ The engine is `robocopy /MIR`, which is `rsync -a --delete` in Windows clothing.
 
 Paths come from `config/config_win.txt`, which is **gitignored** — each Windows box keeps its own. `go.bat` never touches credentials or mounting; if the NAS path is not there, it stops.
 
-> Mapped drive letters are per-logon-session. A `T:` connected in Explorer does **not** exist inside an SSH session, a scheduled task, or an elevated shell — each gets its own session and sees no `T:` at all. For anything non-interactive, point `remote_camera_working_dir_base` at the UNC path (`\DiskStation918\camera\camera_working`) and have whatever drives the run establish credentials first with `net use`.
+### Running it
+
+Sitting at the machine, where Explorer already holds `T:`:
+
+```bat
+C:\...\exiftool_mac> go.bat cw
+C:\...\exiftool_mac> set "GO_DRY=1" & go.bat cw   :: list only, change nothing
+C:\...\exiftool_mac> set "GO_DRY="  & go.bat cw   :: back to normal
+```
+
+Over SSH from the Mac, one extra step first:
+
+```bat
+C:\Users\jiech> cd C:\...\exiftool_mac
+C:\...\exiftool_mac> mnt.bat
+C:\...\exiftool_mac> go.bat cw
+```
+
+**Mapped drive letters are per-logon-session.** An SSH login gets its own session, and the `T:` you see in Explorer does not exist in it — `dir T:\` answers "系統找不到指定的路徑". Same for a scheduled task or an elevated shell. `mnt.bat` maps the drive for the session it runs in, so it is needed after **every** SSH login, not once.
+
+It is idempotent and safe to run anywhere: if the path is already reachable it says so and does nothing. That also makes it the fix on the desktop when `T:` has gone stale (`net use` showing *Unavailable*).
+
+`mnt.bat` is the only thing on the Windows side that touches credentials — `nas_drive` / `nas_unc` / `nas_user` from `config/config_win.txt`, and the password from `config/config_secrets.txt`. It reads the same `pw` the Mac's `go.sh 2` uses for that box rather than keeping a second copy, so there is only ever one place to change it. `go.bat` itself still knows nothing about the NAS.
+
+It never calls `net use /delete`. That would remove a remembered mapping for the whole account, not just this session; if the drive letter is stuck it authenticates the server first and retries, which clears a dead entry on its own.
+
+
 
 
 ## EXIF repair tools
