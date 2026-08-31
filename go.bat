@@ -1,29 +1,37 @@
 @echo off
 rem ============================================================================
-rem  go.bat cw   -   windows 這一端的 camera_working 同步
+rem  go.bat cw  -  the windows end of the camera_working sync
 rem
-rem  方向: 本機 windows camera_working  ==>  nas camera_working   (單向)
+rem  Direction: local windows camera_working  ==>  nas camera_working  (one way)
 rem
-rem  這是整條鏈的起點。camera_working/ 的正本在 windows (photoshop 的重活在這裡
-rem  做)，跑完之後 nas 會變成和本機一模一樣，mac 那邊再用 '. go.sh cw' 從 nas
-rem  抓回去:
+rem  This is the head of the chain. The master copy of camera_working lives on
+rem  windows, because the heavy photoshop work happens here. After this runs the
+rem  nas matches this machine exactly, and the mac then pulls it down with
+rem  '. go.sh cw':
 rem
-rem      windows (正本) --go.bat cw--> nas --. go.sh cw--> mac
+rem      windows (master) --go.bat cw--> nas --. go.sh cw--> mac
 rem
-rem  用 /MIR，所以本機沒有的檔案在 nas 上會被刪掉。這是刻意的 (要求「一模一樣」)。
-rem  但也就是說: 本機資料夾如果是空的或是路徑打錯，nas 會被清空，而且下一次 mac
-rem  跑 '. go.sh cw' 的時候，mac 那一份也會跟著被清空。一路砍到底。
-rem  所以下面兩個 it_exists.txt 的檢查不是方便性質的，是防護。
+rem  It uses /MIR, so a file that is not here gets deleted on the nas. That is
+rem  deliberate - "exactly the same" is the point. But it also means: if the
+rem  local folder is empty or the path is wrong, the nas folder gets emptied,
+rem  and the next '. go.sh cw' on the mac then empties the mac folder too.
+rem  One bad run takes out all three copies. That is why the two it_exists.txt
+rem  checks below are guards, not conveniences.
 rem
-rem  這支 script 不碰任何 nas 連線/掛載/帳號密碼的事。T: 由外面掛好，
-rem  掛不上 (mapping 還在但連不上時 T:\camera_working 是不存在的) 就直接離開。
+rem  This script does no mounting and needs no nas credentials. T: is mounted
+rem  by something else (Explorer, or mnt.bat over ssh). If it is not there -
+rem  a mapping can exist but be Unavailable, in which case T:\camera_working
+rem  does not exist - this script just stops.
 rem
-rem  用法:
-rem      go.bat cw                     實際執行
-rem      set GO_DRY=1 ^& go.bat cw      只列出會做什麼，不真的動 (robocopy /L)
+rem  Usage:
+rem      go.bat cw                      run it
+rem      set "GO_DRY=1" ^& go.bat cw     list only, change nothing (robocopy /L)
+rem      set "GO_DRY=" ^& go.bat cw      back to normal. Keep the quotes: written
+rem                                     bare, the space before the ^& becomes the
+rem                                     value and you stay stuck in dry run.
 rem
-rem  注意: 這支是「執行」的，和 go.sh 必須 source 剛好相反。
-rem        寫 go.bat cw，不要寫 . go.bat cw
+rem  Note this one is EXECUTED, not sourced - the opposite of go.sh.
+rem  Write 'go.bat cw', never '. go.bat cw'.
 rem ============================================================================
 
 setlocal EnableExtensions
@@ -31,15 +39,16 @@ setlocal EnableExtensions
 echo %DATE% %TIME% start_go.bat
 
 rem ---- ARG -------------------------------------------------------------------
-rem  只吃 'cw' 一個參數，其他一律不做事。
+rem  Takes 'cw' and nothing else. Anything else does nothing at all.
 if "%~1"==""        goto :usage
 if not "%~2"==""    goto :usage
 if /i not "%~1"=="cw" goto :usage
 
 rem ---- config ----------------------------------------------------------------
-rem  config\config_win.txt 被 .gitignore 忽略，每一台 windows 自己設定。
-rem  格式和 mac 的 config_vars.txt 一樣: KEY=VALUE，# 開頭是註解。
-rem  行首不要有空白，= 兩邊也不要有空白，否則會變成變數名稱的一部分。
+rem  config\config_win.txt is gitignored - every windows box keeps its own.
+rem  Same KEY=VALUE format as the mac's config_vars.txt, # starts a comment.
+rem  No leading whitespace, and no spaces around the =, or they end up as part
+rem  of the variable name or the value.
 set "CONF=%~dp0config\config_win.txt"
 if not exist "%CONF%" goto :noconf
 
@@ -50,38 +59,44 @@ set "DST=%remote_camera_working_dir_base%"
 if not defined SRC goto :badconf
 if not defined DST goto :badconf
 
-rem  robocopy 的路徑結尾不能有反斜線。"C:\foo\" 裡面的 \" 會被當成跳脫字元，
-rem  整個參數就爛掉了。這裡先砍掉結尾的反斜線。
+rem  A robocopy path must not end in a backslash. In "C:\foo\" the \" is read
+rem  as an escaped quote and the whole argument falls apart. Trim it here.
 if "%SRC:~-1%"=="\" set "SRC=%SRC:~0,-1%"
 if "%DST:~-1%"=="\" set "DST=%DST:~0,-1%"
 
-rem ---- 防護 ------------------------------------------------------------------
-rem  來源端 it_exists.txt: 確認本機那個資料夾是真的那一個，不是空殼、不是路徑
-rem  打錯。這關沒過就 /MIR 上去的話，nas 會被清空。
+rem ---- guards ----------------------------------------------------------------
+rem  Source sentinel: proof that the local folder really is the working folder,
+rem  not an empty shell and not a mistyped path. If this check does not hold and
+rem  we /MIR anyway, the nas folder gets emptied.
 if not exist "%SRC%\it_exists.txt" goto :nosrc
 
-rem  目的端 it_exists.txt: 確認 T: 真的掛上了。mapping 還在但是連不上的時候，
-rem  T:\camera_working 根本不存在，這裡就會擋下來。
+rem  Destination sentinel: proof that T: is actually mounted. When the mapping
+rem  is remembered but disconnected, T:\camera_working does not exist and this
+rem  is what catches it.
 if not exist "%DST%\it_exists.txt" goto :nodst
 
-rem ---- rsync -a --delete 的 robocopy 版本 -------------------------------------
-rem  /MIR        = /E + /PURGE，完全鏡像，含刪除。等於 rsync -a --delete
-rem  /FFT        = 時間戳用 2 秒的容差。NTFS 是 100ns，nas 那邊透過 SMB 只有秒級，
-rem                不加這個的話檔案會每次都看起來「比較新」，每跑一次就重傳一次。
-rem                等於 rsync 的 --modify-window
-rem  /COPY:DAT   = 只複製 資料/屬性/時間戳。不要碰 ACL (/SEC)，SMB 對 nas 會噴錯
-rem  /R:2 /W:5   = 重試 2 次、間隔 5 秒。robocopy 預設是重試一百萬次 x 30 秒，
-rem                有一個檔案被鎖住就等到天荒地老
-rem  /NP         = 不要印每個檔案的百分比進度
-rem  不列 /NFL /NDL: /MIR 會刪東西，刪掉什麼要看得到
+rem ---- robocopy: the 'rsync -a --delete' of windows ---------------------------
+rem  /MIR        = /E + /PURGE, a full mirror including deletes. No /XO: an
+rem                exact copy is the point, so a nas-newer file is overwritten
+rem  /FFT        = 2-second tolerance on timestamps. NTFS keeps 100ns, the nas
+rem                over SMB only second-level; without this every file looks
+rem                newer on every run and the whole folder re-transfers each
+rem                time. This is rsync's --modify-window
+rem  /COPY:DAT   = data, attributes, timestamps only. Do not add /SEC - NTFS
+rem                ACLs over SMB to the nas just throw errors
+rem  /R:2 /W:5   = retry twice, 5s apart. The default is one million retries
+rem                30s apart, so one file locked by photoshop hangs forever
+rem  /NP         = no per-file percentage
+rem  No /NFL or /NDL on purpose: /MIR deletes things, and you want to see what
 set "DRY="
 if defined GO_DRY set "DRY=/L"
 
 set "RC_OPTS=/MIR /FFT /COPY:DAT /DCOPY:DAT /R:2 /W:5 /NP"
-rem  @eaDir 是 Synology 自己產生的縮圖目錄，不要刪它也不要抓它。
-rem  Thumbs.db / desktop.ini 是 windows 自己產生的，不要送上去。
-rem  .DS_Store / .Trashes 是 mac 的。
-rem  注意 robocopy 和 rsync 一樣，被排除的東西在目的端不會被 /MIR 刪掉。
+rem  @eaDir is Synology's own thumbnail directory - do not copy it and do not
+rem  delete it. Thumbs.db / desktop.ini are made by windows, keep them here.
+rem  .DS_Store / .Trashes belong to the mac.
+rem  Like rsync, robocopy will not purge an excluded item on the destination,
+rem  so @eaDir survives on the nas.
 set "RC_XD=/XD @eaDir .Trashes"
 set "RC_XF=/XF .DS_Store Thumbs.db desktop.ini"
 
@@ -95,10 +110,11 @@ echo.
 robocopy "%SRC%" "%DST%" %RC_OPTS% %RC_XD% %RC_XF% %DRY%
 set "RC=%ERRORLEVEL%"
 
-rem  robocopy 的 exit code 不是 unix 那一套:
-rem    0 = 沒事可做   1 = 有複製   2 = 目的端有多的(已刪)   4 = 有 mismatch
-rem    8 以上 = 真的失敗
-rem  所以 0-7 都算成功。這裡用 GEQ 8，不要寫成 'if errorlevel 1'。
+rem  Robocopy exit codes are not the unix ones:
+rem    0 = nothing to do   1 = files copied   2 = extras in dest   4 = mismatch
+rem    8 and up = real failure
+rem  So 0-7 all mean success. Use GEQ 8 here, never 'if errorlevel 1'.
+rem  rc=2 is routine: that is @eaDir being counted as an extra.
 if %RC% GEQ 8 goto :rcfail
 
 echo.
@@ -108,7 +124,7 @@ echo %DATE% %TIME% end_go.bat
 exit /b 0
 
 
-rem ---- 錯誤出口 --------------------------------------------------------------
+rem ---- error exits -----------------------------------------------------------
 
 :usage
 echo.
@@ -117,7 +133,7 @@ echo.
 echo   cw    mirror local camera_working  --^>  nas camera_working  (one way)
 echo.
 echo   modes 0 / 1 / 2 / 3 are mac-only, see go.sh
-echo   set GO_DRY=1 to list only ^(robocopy /L^)
+echo   set "GO_DRY=1" to list only ^(robocopy /L^), set "GO_DRY=" to clear
 echo.
 exit /b 1
 
@@ -146,7 +162,7 @@ exit /b 1
 :nodst
 echo.
 echo [go.bat] STOP: no "%DST%\it_exists.txt"
-echo [go.bat] the nas folder is not mounted. check T: in explorer, then run again.
+echo [go.bat] the nas folder is not mounted. run mnt.bat, or check T: in explorer.
 echo.
 exit /b 1
 
