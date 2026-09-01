@@ -1,8 +1,8 @@
 graph LR
 
-  subgraph win["Windows PC &nbsp; (not part of this project)"]
+  subgraph win["Windows PC &nbsp; (go.bat / mnt.bat, in this repo)"]
     W1["<img src='https://i.imgur.com/mRqWQHm.png'/>"]
-    WW["C:\Users\jiech\Downloads\camera_working <br/> Photoshop / Sequator <br/> <b>the work happens here</b>"]
+    WW["C:\Users\jiech\Downloads\camera_working <br/> Photoshop / Sequator <br/> <b>the master copy, the work happens here</b>"]
   end
 
   subgraph nas["DS918 &nbsp; 192.168.123.163"]
@@ -13,10 +13,11 @@ graph LR
   subgraph mac["mac &nbsp; (UltraFit256)"]
     M1["<img src='https://i.imgur.com/mRqWQHm.png'/>"]
     MM["<b>camera_working</b> <br/> exact copy of the NAS <br/> collect finished results here"]
-    WARN["<b>--delete points at the mac</b> <br/> anything here that is not on <br/> the NAS is deleted. <br/> the remote it_exists.txt probe <br/> is what stops an unreachable <br/> NAS from emptying it."]
   end
 
-  WW <-.-> |"go.bat &nbsp; two-way <br/> robocopy over the T: mapped drive <br/> (separate, not in this repo)"| NN
+  WW ==> |"<b>&gt; go.bat cw</b> <br/> robocopy /MIR /FFT over the T: mapped drive <br/> one way, windows to NAS <br/> (mnt.bat maps T: first, over SSH)"| NN
   NN ==> |"<b>$ . go.sh cw</b> <br/> rsync -a --delete <br/> one way, NAS to mac"| MM
+
+  WARN["<b>--delete points downstream</b> <br/> each hop mirrors the one before it. <br/> a bad run on windows empties the NAS, <br/> and the next pull empties the mac. <br/> the it_exists.txt probes are what <br/> stop each hop from running blind."]
 
   style WARN fill:#fff3cd,stroke:#e0a800,color:#000
