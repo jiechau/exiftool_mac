@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-"""Build <folder>/_diary/: everything in 00info/, three JPEGs per group, every JPEG of a
-scattered-group.
+"""Build <folder>/_diary/: everything in 00info/ and three JPEGs per group.
+
+Scattered-groups -- the blocks whose name stops at the camera, holding the night's test and
+framing shots -- are NOT in the strip. They are counted and reported, never copied.
 
 Frames come from each block's lights/jpg/ -- the light frames, which are the ones worth
 looking at. A block's darks/, flats/ and bias/ are calibration, sorted out by hand after
@@ -11,10 +13,10 @@ The diary is REBUILT from scratch on every run: it is emptied first, then filled
 frame from an older layout. Copies (never moves) out of 00info/ and the blocks, names each copy
 <source>_<filename>, then numbers the strip d000010_/d000020_/... in capture order.
 
-A group contributes its first, middle and last frame, and the three travel together: 00info/ and
-the scattered frames are placed individually by capture time, and each group is inserted whole at
-the time of its first pick, so a run reads as one block rather than three frames scattered through
-everything shot alongside it.
+A group contributes its first, middle and last frame, and the three travel together: 00info/
+photos are placed individually by capture time, and each group is inserted whole at the time of
+its first pick, so a run reads as one block rather than three frames scattered through everything
+shot alongside it.
 
 There is no undo and none is needed: every frame in the diary is a copy of a file that is still
 sitting in 00info/ or a block, so a rebuild puts it straight back. Nothing else is kept -- the diary
@@ -40,7 +42,8 @@ BLOCK_RE = re.compile(r'^\d[A-L]-\d{3,}-')
 PROTECTED_PREFIXES = ('.', '_')
 PROTECTED_ROOT = {'00info'}
 # A group carries settings; a scattered-group does not. A hand-added label may follow the ISO
-# (6H-0039-6dii-24mm-8s-f1.4-iso200_thor) -- that is still a group.
+# (6H-0039-6dii-24mm-8s-f1.4-iso200_thor) -- that is still a group. Only groups reach the diary;
+# a block that fails this test is a scattered-group and is reported, not copied.
 GROUP_RE = re.compile(r'-iso\d+(?:_.*)?$', re.I)
 TZ_RE = re.compile(r'[+-]\d{2}:?\d{2}$')    # trailing +08:00 on an exiftool stamp
 # A screenshot with no EXIF date still carries its time in its own name: 2026-08-18 16.35.16.png
@@ -224,17 +227,26 @@ def find00info(folder):
 
 
 def build_plan(exe, folder, blocks, infodir, infofiles):
-    """The diary the sources call for: all of 00info/, three frames per group, all of a
-    scattered-group.
+    """The diary the sources call for: all of 00info/ and three frames per group.
+
+    Returns (plan, skipped) — `skipped` is the scattered-groups, reported so they are visibly
+    left out rather than silently missing.
 
     This is the whole diary, not a delta — the run rebuilds it from exactly this list.
 
-    The strip is ordered in *units*. A photo from 00info/ and a frame of a scattered-group is a
-    unit of its own, placed at its own capture time. A group is a single unit of three frames —
-    first, middle, last — inserted where its *first* pick falls, so the three stay together
-    instead of the middle and last drifting off among whatever else was shot during the run.
+    The strip is ordered in *units*. A photo from 00info/ is a unit of its own, placed at its own
+    capture time. A group is a single unit of three frames — first, middle, last — inserted where
+    its *first* pick falls, so the three stay together instead of the middle and last drifting off
+    among whatever else was shot during the run.
     """
-    all_jpgs = [os.path.join(d, f) for _, d, fs in blocks for f in fs]
+    # Scattered-groups are the test and framing shots. They are not part of the night's story,
+    # so nothing of them reaches the strip -- not even their timestamps get read.
+    groups = [b for b in blocks if GROUP_RE.search(b[0])]
+    skipped = [(name, len(fs)) for name, _, fs in blocks if not GROUP_RE.search(name)]
+    if not groups:
+        print(f"  warning: no group directories (a name carrying -iso<n>) in this folder; "
+              f"the diary is {INFO}/ only", file=sys.stderr)
+    all_jpgs = [os.path.join(d, f) for _, d, fs in groups for f in fs]
     dates, unreadable = read_dates(exe, all_jpgs)
     if unreadable:
         print(f"  warning: no usable DateTimeOriginal, ignored: "
@@ -256,21 +268,17 @@ def build_plan(exe, folder, blocks, infodir, infofiles):
     for p in info_paths:
         units.append([entry(INFO, 'info', len(info_paths), p, idates.get(p))])
 
-    for name, jpgdir, files in blocks:
-        kind = 'group' if GROUP_RE.search(name) else 'scattered'
+    for name, jpgdir, files in groups:
         ordered = sorted((p for p in (os.path.join(jpgdir, f) for f in files) if p in dates),
                          key=lambda p: (dates[p], os.path.basename(p)))
         if not ordered:
             print(f"  warning: {name}: no frame with a readable timestamp, skipped", file=sys.stderr)
             continue
-        if kind == 'group':
-            # First, middle, last -- de-duplicated, so a one- or two-frame group contributes
-            # one or two frames rather than the same file twice.
-            idx = sorted({0, len(ordered) // 2, len(ordered) - 1})
-            units.append([entry(name, kind, len(ordered), ordered[i], dates[ordered[i]])
-                          for i in idx])
-        else:
-            units.extend([entry(name, kind, len(ordered), src, dates[src])] for src in ordered)
+        # First, middle, last -- de-duplicated, so a one- or two-frame group contributes
+        # one or two frames rather than the same file twice.
+        idx = sorted({0, len(ordered) // 2, len(ordered) - 1})
+        units.append([entry(name, 'group', len(ordered), ordered[i], dates[ordered[i]])
+                      for i in idx])
 
     # A unit is placed by its first frame. Undated ones sort last, by name, rather than
     # disappearing from the sequence.
@@ -278,7 +286,7 @@ def build_plan(exe, folder, blocks, infodir, infofiles):
     plan = [e for u in units for e in u]
     for i, e in enumerate(plan):
         e['final'] = f"d{(i + 1) * STEP:06d}{SEP}{e['stem']}"
-    return plan
+    return plan, skipped
 
 
 def current_diary(folder):
@@ -294,7 +302,7 @@ def current_diary(folder):
             if not fn.startswith('.') and os.path.isfile(os.path.join(diary, fn))]
 
 
-def print_plan(plan, existing, info_other):
+def print_plan(plan, existing, info_other, skipped):
     # One row per source, in the order the sources reach the strip -- a group picks three frames
     # and would otherwise take three rows.
     rows = {}
@@ -307,11 +315,15 @@ def print_plan(plan, existing, info_other):
     for source, r in rows.items():
         if r['kind'] == 'group':
             pick = f"first+middle+last: {', '.join(r['picks'])}"
-        else:
+        else:                                                      # 00info/: all of it
             pick = f"all {len(r['picks'])}: {', '.join(r['picks'][:3])}"
             if len(r['picks']) > 3:
                 pick += ' ...'
         print(f"{source:<{w}} {r['kind']:<9} {r['n']:>4}  {pick}")
+    if skipped:
+        print(f"\nscattered-groups, left out of the diary by design — {len(skipped)} block(s), "
+              f"{sum(c for _, c in skipped)} frames: "
+              + ', '.join(f"{n} ({c})" for n, c in skipped))
     if info_other:
         print(f"\nnot photos, left in {INFO}/: {', '.join(info_other[:8])}"
               f"{' ...' if len(info_other) > 8 else ''}")
@@ -370,11 +382,11 @@ def main():
                  f"expected names like 6I-0035-550d-18mm-15s-f3.5-iso1600/{LIGHTS}/jpg "
                  f"(organize the folder first)")
     infodir, infofiles, info_other = find00info(folder)
-    plan = build_plan(exe, folder, blocks, infodir, infofiles)
+    plan, skipped = build_plan(exe, folder, blocks, infodir, infofiles)
     if not plan:
         sys.exit("nothing to do: no frames with readable timestamps")
     existing = current_diary(folder)
-    print_plan(plan, existing, info_other)
+    print_plan(plan, existing, info_other, skipped)
 
     if args.apply:
         written = apply_plan(folder, plan, existing)

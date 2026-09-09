@@ -69,7 +69,7 @@ The layout the skills read and write:
     lights/jpg/  lights/raw/          what organize-photo-folders writes
     darks/jpg/   darks/raw/           calibration, moved across by hand afterwards
     _post-processing/                 parked to _dangling/<block>/ on the next organize run
-  _diary/                             contact sheet, 3 frames per group (create-diary)
+  _diary/                             contact sheet, 3 frames per group; groups only (create-diary)
   00info/                             screenshots, planning notes, weather/sky charts
   _dangling/                          post-processing trees parked here, original path kept
   _post-processing/                   hand-curated, never touched
@@ -78,7 +78,7 @@ The layout the skills read and write:
 - Blocks are **flat** under the shoot folder — camera and focal length are part of the block's own name, not a parent level. The prefix is the year's last digit plus a month letter (`1 A … 9 I, 10 J, 11 K, 12 L`), so September 2026 is `6I`; it comes from the **shoot folder's name**, never from a photo, because a night crosses midnight and must keep one prefix.
 - **A leading `_` or `.` protects a directory at every depth** — that is how anything gets parked anywhere and survives a re-run. `00info/` and `*diary/` are protected at the **root only**. The one exception is a post-processing tree below the root, parked under `_dangling/` with its path kept, because blocks get renumbered and the path is the record of which block the work came from.
 - **`lights/` is the only level `organize.py` writes.** `darks/`, `flats/` and `bias/` are hand-made afterwards, and re-running the skill pulls them back into `lights/` — expected, and the report must say so.
-- **`_diary/` holds copies only** and is emptied and rebuilt on every run. A frame that must be in the strip belongs in `00info/`; one dropped straight into the diary is gone on the next run.
+- **`_diary/` holds copies only** and is emptied and rebuilt on every run. A frame that must be in the strip belongs in `00info/`; one dropped straight into the diary is gone on the next run. **Scattered-groups do not reach the diary at all** (changed 2026-09-09) — they are reported by name and frame count and copied nowhere, so a test frame worth keeping also goes in `00info/`.
 - A `.CR2` + `.JPG` sharing a basename is **one** photo. Read EXIF from the `.JPG` — same shooting data, far faster — and read a whole folder in one `exiftool` call, not one call per file.
 - `SubSecDateTimeOriginal` is what makes a fixed interval detectable: these are 8–30 s exposures, so consecutive frames are seconds apart on the clock alone.
 - Never delete a photo, never rewrite its EXIF in place, never rename an original. Organization happens through directories, and `IMG_0723` keeps its name forever.

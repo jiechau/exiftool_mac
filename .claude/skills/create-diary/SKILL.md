@@ -1,13 +1,17 @@
 ---
 name: create-diary
-description: Rebuild the shoot folder's *diary/ directory (_diary/ by default) from scratch — every photo in 00info/, the first, middle and last JPEG of each group, every JPEG of each scattered-group, named <source>_<filename> and numbered d000010_, d000020_, ... in capture order, with each group's three frames kept together. Frames are read from each block's lights/jpg/ only; darks/, flats/ and bias/ never reach the strip. The diary is emptied first, so it always mirrors 00info/ and the blocks exactly. Reads the 6I-0001-... block names organize-photo-folders writes. Use when asked to create or rebuild the diary for a shoot folder such as "create diary for 2026_0821_camera_ccd_roof".
+description: Rebuild the shoot folder's *diary/ directory (_diary/ by default) from scratch — every photo in 00info/ and the first, middle and last JPEG of each group, named <source>_<filename> and numbered d000010_, d000020_, ... in capture order, with each group's three frames kept together. Scattered-groups are reported and left out. Frames are read from each block's lights/jpg/ only; darks/, flats/ and bias/ never reach the strip. The diary is emptied first, so it always mirrors 00info/ and the blocks exactly. Reads the 6I-0001-... block names organize-photo-folders writes. Use when asked to create or rebuild the diary for a shoot folder such as "create diary for 2026_0821_camera_ccd_roof".
 ---
 
 # Create diary
 
-Puts the night's screenshots and charts beside its frames — everything in `00info/`, three frames
-to stand for each intervalometer run, every test frame — so a whole night reads as a single ordered
-strip in the diary directory.
+Puts the night's screenshots and charts beside its frames — everything in `00info/` and three
+frames to stand for each intervalometer run — so a whole night reads as a single ordered strip in
+the diary directory.
+
+**Scattered-groups are not in the strip.** A block whose name stops at the camera
+(`6I-0001-6dii`) is the night's test and framing shots; they are counted and reported, never
+copied. Only groups — the blocks carrying settings — contribute frames.
 
 Run this **after** `organize-photo-folders`. It reads `00info/` and the block directories that skill
 produces, and does nothing without them.
@@ -110,13 +114,17 @@ nothing is ever moved or renamed inside `00info/` or a block — the diary is bu
 |---|---|---|
 | `00info/` | the name `00info` | **every** photo in it |
 | group, e.g. `6I-0002-6dii-24mm-8s-f11-iso100` | name carries `-iso<n>` | the **first, middle and last** frame, by capture time |
-| scattered-group, e.g. `6I-0001-6dii` | no settings in the name | **every** frame |
+| scattered-group, e.g. `6I-0001-6dii` | no settings in the name | **nothing** — reported, never copied |
 
 A group is a fixed-interval run, so three frames show how it went: where it started, where it sat,
 and what it had drifted to by the end — cloud rolling in, the target sliding out of frame, dew on
-the glass. A scattered-group is the test and framing shots, which all differ — so all of them are
-kept. `00info/` holds the night's story — screenshots, planning notes, weather and sky charts, phone
-frames — so all of it is kept too.
+the glass. A scattered-group is the test and framing shots — the fumbling before the run, not part
+of the night's story — so the strip leaves it out entirely. `00info/` holds the night's story —
+screenshots, planning notes, weather and sky charts, phone frames — so all of it is kept.
+
+A scattered-group's frames are never even read for their timestamps: the block is listed in the
+plan with its frame count and skipped. If one of those frames belongs in the strip, **copy it into
+`00info/`** — that is the only way in, and the same rule that governs everything else here.
 
 A group of fewer than three frames contributes what it has: the three picks are de-duplicated, so a
 two-frame group gives two and a one-frame group gives one. A block name may carry a hand-added
@@ -131,7 +139,6 @@ Each copy is named `<source>_<original filename>` — joined with an **underscor
 ```
 00info/2026-08-18 21.15.04.png                            ->  00info_2026-08-18 21.15.04.png
 6I-0002-6dii-24mm-8s-f11-iso100/lights/jpg/IMG_0013.JPG  ->  6I-0002-6dii-24mm-8s-f11-iso100_IMG_0013.JPG
-6I-0001-6dii/lights/jpg/IMG_0001.JPG                     ->  6I-0001-6dii_IMG_0001.JPG
 ```
 
 The `lights/jpg/` level does not appear in the name: the source is the **block**, and the frames
@@ -145,9 +152,9 @@ the exact file it came from.
 
 ### 3. Order the diary, then number it
 
-The strip is ordered in **units**. Every photo from `00info/` and every frame of a scattered-group
-is a unit of its own, placed at its own capture time. **A group is a single unit of three frames**,
-inserted where its *first* pick falls — and the three then sit together.
+The strip is ordered in **units**. Every photo from `00info/` is a unit of its own, placed at its
+own capture time. **A group is a single unit of three frames**, inserted where its *first* pick
+falls — and the three then sit together.
 
 That is the point of the unit: a group's first and last frame can be an hour apart, so sorting
 every frame flat would strew the run's middle and end through everything shot alongside it. Placing
@@ -158,10 +165,10 @@ The ordered strip is then given a sequence prefix, starting at **`d000010_`** an
 
 ```
 d000010_00info_2026-08-18 21.15.04.png
-d000020_6I-0001-6dii_IMG_0001.JPG
-d000030_6I-0002-6dii-24mm-8s-f11-iso100_IMG_0013.JPG
-d000040_6I-0002-6dii-24mm-8s-f11-iso100_IMG_0027.JPG
-d000050_6I-0002-6dii-24mm-8s-f11-iso100_IMG_0041.JPG
+d000020_6I-0002-6dii-24mm-8s-f11-iso100_IMG_0013.JPG
+d000030_6I-0002-6dii-24mm-8s-f11-iso100_IMG_0027.JPG
+d000040_6I-0002-6dii-24mm-8s-f11-iso100_IMG_0041.JPG
+d000050_00info_2026-08-18 23.42.10.png
 ```
 
 The gap of 10 is a reading convenience, not an insertion point any more — a run renumbers the strip
@@ -201,11 +208,14 @@ running it again is the way back from any run.
 After applying, report:
 
 - the per-source table: source, type, frames available, which frames were picked
+- the scattered-groups left out, by name and frame count — they are skipped by design, so say so
+  rather than letting them go unmentioned
 - the resulting diary in order, with its `dNNNNNN-` numbers
 - how many frames were written, and how many the run removed from the diary first
-- verification that `00info/` contributed every photo, groups three frames each (fewer only when
-  the group holds fewer) kept together in the strip, and scattered-groups all of theirs
+- verification that `00info/` contributed every photo, that groups gave three frames each (fewer
+  only when the group holds fewer) kept together in the strip, and that no scattered-group frame
+  reached the diary
 - anything worth revisiting — non-photo files left in `00info/`, blocks skipped for unreadable
   timestamps, blocks skipped for holding a bare `jpg/` and no `lights/` (the old layout — say the
-  folder wants re-organizing), photos placed by filename or mtime rather than EXIF, or a
-  scattered-group large enough to swamp the strip. Flag these; do not silently drop them.
+  folder wants re-organizing), photos placed by filename or mtime rather than EXIF, or a folder
+  holding no group at all (the diary is then `00info/` only). Flag these; do not silently drop them.

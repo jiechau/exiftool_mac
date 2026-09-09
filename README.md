@@ -308,7 +308,9 @@ A bare name is only resolved after `camera_latest/it_exists.txt` is found — th
 
 ### The diary
 
-`_diary/` is the night read as one ordered strip: everything in `00info/`, the first, middle and last frame of each group, every frame of each scattered-group — read from `<block>/lights/jpg/` only — numbered `d000010_`, `d000020_`, … in capture order, e.g. `d000030_6I-0002-6dii-24mm-8s-f11-iso100_IMG_0013.JPG`.
+`_diary/` is the night read as one ordered strip: everything in `00info/` and the first, middle and last frame of each group — read from `<block>/lights/jpg/` only — numbered `d000010_`, `d000020_`, … in capture order, e.g. `d000030_6I-0002-6dii-24mm-8s-f11-iso100_IMG_0013.JPG`.
+
+**Scattered-groups are left out.** The test and framing shots are the fumbling before a run, not the night's story, so the diary reports each one by name and frame count and copies none of it. A test frame that does belong in the strip goes in `00info/` like anything else.
 
 It holds **copies only** and is emptied and refilled on every run, which is why there is no undo and nothing set aside. **If a photo must appear in the strip, put it in `00info/`** — one dropped straight into `_diary/` is gone on the next run.
 
