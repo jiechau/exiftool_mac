@@ -44,12 +44,12 @@ Media reaches the organized library two different ways. Both end up under `Ultra
 |---|---|---|
 | source | Dropbox Camera Uploads folders | SD card from a real camera, imported by hand |
 | destination | `photo_latest/`, `video_latest/` | `camera_latest/` |
-| created by | `. go.sh 0` (exiftool renames by date) | you, manually |
-| layout | `YYYY_MMDD_event/YYYY-MM-DD HH.MM.SS.jpg` | `YYYY_MMDD_camera_event/<body>-<lens>/` |
+| created by | `. go.sh 0` (exiftool renames by date) | you, by hand — then the two camera skills |
+| layout | `YYYY_MMDD_event/YYYY-MM-DD HH.MM.SS.jpg` | `YYYY_MMDD_camera_event/<block>/lights/{jpg,raw}` |
 | contents | jpg, png, mov, mp4 | JPG + RAW (CR2), tif |
 | replicated by | `. go.sh 1` / `2` / `3` | `. go.sh 1` / `2` / `3` |
 
-**`go.sh 0` does not touch `camera_latest`.** That folder is yours to organize — keep RAW alongside JPG, group by shoot, subdivide by camera body and lens however you like. The sync steps treat it as an opaque directory to mirror.
+**`go.sh 0` does not touch `camera_latest`.** You dump the card there yourself; the sorting is done by the two skills in [The `camera_latest` archive](#the-camera_latest-archive), and the sync steps treat the result as an opaque directory to mirror.
 
 
 ## `go.sh` modes
@@ -254,6 +254,67 @@ It never calls `net use /delete`. That would remove a remembered mapping for the
 
 
 
+## The `camera_latest` archive
+
+`camera_latest/` is the astrophotography half of the library — one directory per shoot, named `YYYY_MMDD_camera_<place_or_subject>`, JPG alongside CR2 RAW. `go.sh` only mirrors it; the sorting is two Claude Code skills in `.claude/skills/`:
+
+| skill | what it does |
+|---|---|
+| `organize-photo-folders` | reads EXIF, detects intervalometer runs, re-blocks the whole shoot folder into `<block>/lights/{jpg,raw}` |
+| `create-diary` | rebuilds the shoot's `_diary/` contact sheet — everything in `00info/`, three frames per run, every test frame, in capture order |
+
+Both used to live on the drive itself, in `camera_latest/.claude/`. They moved into this repo on 2026-09-09 so the drive stays pure storage: no `.claude/`, no `README.md`, no `CLAUDE.md` out there.
+
+### The shoot folder is a name, not a path
+
+The skills are here, the photos are not. Both scripts read **`$dest_camera_dir_base`** out of `config/config_vars.txt` — the same variable `go.sh` syncs that library from — and resolve a bare shoot-folder name against it. So from the repo checkout:
+
+```bash
+$ cd ~/life_codes/exiftool_mac
+$ python3 .claude/skills/organize-photo-folders/organize.py 2026_0821_camera_ccd_roof 1          # plan
+$ python3 .claude/skills/organize-photo-folders/organize.py 2026_0821_camera_ccd_roof 1 --apply  # move
+$ python3 .claude/skills/create-diary/diary.py 2026_0821_camera_ccd_roof                         # plan
+$ python3 .claude/skills/create-diary/diary.py 2026_0821_camera_ccd_roof --apply                 # rebuild
+```
+
+In Claude Code, ask by name instead: *"organize the folder 2026_0821_camera_ccd_roof 1"*, *"create diary for 2026_0821_camera_ccd_roof"*.
+
+An absolute path still works, and so does a relative one that exists from wherever you are — running a script from inside `camera_latest/` behaves exactly as it did before the move. `CAMERA_LATEST_DIR=/some/other/drive` overrides the config var for one run.
+
+A bare name is only resolved after `camera_latest/it_exists.txt` is found — the same [sentinel](#the-it_existstxt-sentinel) the sync modes use. `UltraFit256` is removable, an unmounted mount point still resolves as an empty directory, and `organize.py` moves and deletes files; a missing sentinel stops the run.
+
+### Layout of an organized shoot
+
+```
+2026_0821_camera_ccd_roof/
+  6I-0001-6dii/                       scattered-group — the name stops at the camera
+    lights/jpg/  lights/raw/
+  6I-0002-6dii-24mm-8s-f11-iso100/    group — <prefix>-<nnnn>-<camera>-<focal>-<shutter>-<aperture>-<iso>
+    lights/jpg/  lights/raw/          what organize-photo-folders writes
+    darks/jpg/   darks/raw/           calibration — moved across by hand, afterwards
+    _post-processing/                 parked to _dangling/<block>/ on the next organize run
+  6I-0003-550d-18mm-30s-f11-iso100/   a second body from the same night sits alongside
+  _diary/                             contact sheet, 3 frames per group (create-diary)
+  00info/                             screenshots, planning notes, weather/sky charts
+  _dangling/                          post-processing trees parked here, original path kept
+  _post-processing/                   hand-curated, never touched
+```
+
+- A **group** is an intervalometer run: consecutive frames at a fixed interval, so the settings are constant and go in the name. A **scattered-group** is the test and framing shots between runs — settings vary, so the name stops at the camera.
+- The prefix is the year's last digit plus a month letter (`1 A … 9 I, 10 J, 11 K, 12 L`): August 2026 is `6H`, September 2026 is `6I`. It comes from the shoot folder's own name, so one night keeps one prefix across midnight.
+- `lights/` is the one level `organize-photo-folders` writes. `darks/`, `flats/` and `bias/` are made **by hand afterwards**; re-running the organize skill pulls them back into `lights/` and they have to be moved out again — expected, not a fault.
+- **A leading `_` (or `.`) protects a directory at every depth.** That is how to park anything anywhere and have it survive a re-run. `00info/` and `*diary/` are protected at the root only. The exception is a post-processing tree below the root: it goes to `_dangling/` with its path kept, because blocks are renumbered on every run and that path is the record of which block the work came from.
+- Originals are never renamed, never deleted, and their EXIF is never rewritten. All organization happens through directories.
+
+### The diary
+
+`_diary/` is the night read as one ordered strip: everything in `00info/`, the first, middle and last frame of each group, every frame of each scattered-group — read from `<block>/lights/jpg/` only — numbered `d000010_`, `d000020_`, … in capture order, e.g. `d000030_6I-0002-6dii-24mm-8s-f11-iso100_IMG_0013.JPG`.
+
+It holds **copies only** and is emptied and refilled on every run, which is why there is no undo and nothing set aside. **If a photo must appear in the strip, put it in `00info/`** — one dropped straight into `_diary/` is gone on the next run.
+
+Neither skill has an undo or a manifest. Run the plan, read it, then apply.
+
+
 ## EXIF repair tools
 
 Files that arrive without usable metadata — scans, screen recordings, video exported from an editor, footage off a camera with a dead clock — need their tags written by hand. These scripts are the tools for that. They are independent of `go.sh`; run them from whatever directory holds the files, before step (d) syncs them.
@@ -299,6 +360,8 @@ exiftool -api QuickTimeUTC -ee -G aaa.mp4 | grep -i gps
 
 Both config files are `.`-sourced by `go.sh`, so they are shell assignments — no spaces around `=`, and `#` comments out a line.
 
+`config_vars.txt` is also **parsed** (not sourced) by the two camera skills, for `dest_camera_dir_base`, and `config_secrets.txt` is parsed by `mnt.bat` on Windows. Keep both to plain `KEY=VALUE`: no quoting, no `export`.
+
 `config/config_vars.txt`:
 
 ```shell
@@ -309,7 +372,7 @@ problem_dir_base=/Users/jiechau/exif_working_dir/_tmp_exiftool_mac/problem_ones
 # local organized library (on the UltraFit256 drive)
 dest_photo_dir_base=/Users/jiechau/exif_working_dir/UltraFit256/photo_latest
 dest_video_dir_base=/Users/jiechau/exif_working_dir/UltraFit256/video_latest
-dest_camera_dir_base=/Users/jiechau/exif_working_dir/UltraFit256/camera_latest
+dest_camera_dir_base=/Users/jiechau/exif_working_dir/UltraFit256/camera_latest   # also the camera skills' root
 # scratch folder pulled back from the NAS, . go.sh cw
 dest_camera_working_dir_base=/Users/jiechau/exif_working_dir/UltraFit256/camera_working
 # remote rsync module paths
@@ -335,3 +398,5 @@ Adding a new library (say `screenshots_latest`) means: a `dest_*` var, one `remo
 | rsync hangs or errors against Synology | needs `--protocol=29` (already set in mode 2) |
 | video timestamps off by hours | missing `-api QuickTimeUTC`; QuickTime dates are stored in UTC |
 | `date: illegal option` | BSD `date` instead of `gdate`; `alias date=gdate` |
+| camera skill: `... has no it_exists.txt` | UltraFit256 isn't mounted, or `dest_camera_dir_base` points elsewhere |
+| camera skill: `folder not found: .../camera_latest/<name>` | shoot folder misspelled — it is resolved under `camera_latest/`, not the cwd |

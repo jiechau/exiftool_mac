@@ -37,7 +37,7 @@ sshpass -p "$pw" rsync --port=873 --protocol=29 admin@192.168.123.163::
 
 ### Two tracks into the library
 
-`go.sh 0` populates `photo_latest/` and `video_latest/` only. **`camera_latest/` is organized by hand** (SD-card imports, `YYYY_MMDD_camera_event/<body>-<lens>/`, JPG alongside CR2 RAW) and only joins the pipeline at the sync stage. Don't add camera handling to mode `0`.
+`go.sh 0` populates `photo_latest/` and `video_latest/` only. **`camera_latest/` is never touched by `go.sh 0`** — SD-card imports land there by hand and are organized by the two skills in [The `camera_latest` archive](#the-camera_latest-archive), not by any mode. It joins the pipeline only at the sync stage, as an opaque directory to mirror. Don't add camera handling to mode `0`.
 
 ### `camera_working` runs backwards, and `--delete` points at the Mac
 
@@ -48,6 +48,44 @@ This inverts the repo's usual hazard. Elsewhere a missing local drive endangers 
 Excluded: `@eaDir` (Synology-generated), `.DS_Store`, `.Trashes`, and `Thumbs.db` / `desktop.ini` (from the Windows box that owns the folder's content). Note rsync protects excluded files on the *receiver* from `--delete`, so adding an exclude never removes copies already pulled down — they go permanently stale and must be deleted by hand once.
 
 It was a two-way sync until 2026-08-31. If you are tempted to restore the push pass, note that a two-way rsync cannot use `--delete` at all — the two passes destroy each other's files.
+
+## The `camera_latest` archive
+
+`camera_latest/` holds astrophotography — one directory per shoot, `YYYY_MMDD_camera_<place>`. Two skills in `.claude/skills/` work on it, and their `SKILL.md` files are the specification; what follows is only what is not in them.
+
+**The photos are not in the repo.** The skills live here, the shoot folders live on the removable drive. Both scripts resolve a bare shoot-folder name against **`$dest_camera_dir_base`** in `config/config_vars.txt` — read straight out of that file by `camera_latest_dir()`, not passed in — so `organize 2026_0818_camera_jilong_dwl_parking 35` works from the repo checkout. An absolute path, or a relative one that exists from the cwd, is taken as given, so running a script from inside `camera_latest/` still behaves the way it did before the migration. `$CAMERA_LATEST_DIR` overrides the config var for a one-off run.
+
+**They reuse `$dest_camera_dir_base` deliberately** — it is the same directory `go.sh` modes 1/2/3 sync, and a second key naming one folder is a pair of values that drift apart. Same reasoning as `mnt.bat` reusing `$pw`.
+
+**And they check `it_exists.txt` before resolving a name**, for the reason the rest of the repo does: `UltraFit256` is removable, an unmounted mount point still resolves as an empty directory, and `organize.py` moves and deletes files. A missing sentinel stops the run rather than presenting an empty directory as a shoot folder.
+
+The layout the skills read and write:
+
+```
+2026_0821_camera_ccd_roof/
+  6I-0001-6dii/                       scattered-group: name stops at the camera
+    lights/jpg/  lights/raw/
+  6I-0002-6dii-24mm-8s-f11-iso100/    group: <prefix>-<nnnn>-<camera>-<focal>-<shutter>-<aperture>-<iso>
+    lights/jpg/  lights/raw/          what organize-photo-folders writes
+    darks/jpg/   darks/raw/           calibration, moved across by hand afterwards
+    _post-processing/                 parked to _dangling/<block>/ on the next organize run
+  _diary/                             contact sheet, 3 frames per group (create-diary)
+  00info/                             screenshots, planning notes, weather/sky charts
+  _dangling/                          post-processing trees parked here, original path kept
+  _post-processing/                   hand-curated, never touched
+```
+
+- Blocks are **flat** under the shoot folder — camera and focal length are part of the block's own name, not a parent level. The prefix is the year's last digit plus a month letter (`1 A … 9 I, 10 J, 11 K, 12 L`), so September 2026 is `6I`; it comes from the **shoot folder's name**, never from a photo, because a night crosses midnight and must keep one prefix.
+- **A leading `_` or `.` protects a directory at every depth** — that is how anything gets parked anywhere and survives a re-run. `00info/` and `*diary/` are protected at the **root only**. The one exception is a post-processing tree below the root, parked under `_dangling/` with its path kept, because blocks get renumbered and the path is the record of which block the work came from.
+- **`lights/` is the only level `organize.py` writes.** `darks/`, `flats/` and `bias/` are hand-made afterwards, and re-running the skill pulls them back into `lights/` — expected, and the report must say so.
+- **`_diary/` holds copies only** and is emptied and rebuilt on every run. A frame that must be in the strip belongs in `00info/`; one dropped straight into the diary is gone on the next run.
+- A `.CR2` + `.JPG` sharing a basename is **one** photo. Read EXIF from the `.JPG` — same shooting data, far faster — and read a whole folder in one `exiftool` call, not one call per file.
+- `SubSecDateTimeOriginal` is what makes a fixed interval detectable: these are 8–30 s exposures, so consecutive frames are seconds apart on the clock alone.
+- Never delete a photo, never rewrite its EXIF in place, never rename an original. Organization happens through directories, and `IMG_0723` keeps its name forever.
+- Neither skill guesses its arguments. No folder named, or no start number for `organize` — ask, then stop. Both are plan-first: run the plan, show it, then `--apply` in the same turn.
+
+The archive **used to carry its own `CLAUDE.md`, `README.md` and `.claude/skills/`**; they moved here on 2026-09-09 so the shoot drive stays pure storage. Don't put documentation back on the drive, and note `readme.txt` there is the owner's private memo under the same rule as this repo's own.
+
 
 ## The Windows end: `go.bat` and `mnt.bat`
 

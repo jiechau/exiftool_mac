@@ -5,6 +5,8 @@ problem_dir_base=/Users/jiechau/exif_working_dir/_tmp_exiftool_mac/problem_ones
 # remote
 dest_photo_dir_base=/Users/jiechau/exif_working_dir/UltraFit256/photo_latest
 dest_video_dir_base=/Users/jiechau/exif_working_dir/UltraFit256/video_latest
+# camera_latest 也是 organize-photo-folders / create-diary 兩個 skill 的根目錄，
+# 它們直接讀這一行來把「資料夾名字」解析成完整路徑（$CAMERA_LATEST_DIR 可覆寫）
 dest_camera_dir_base=/Users/jiechau/exif_working_dir/UltraFit256/camera_latest
 # camera_working: . go.sh camera_working (cw) 專用，方向是 nas -> 本機
 dest_camera_working_dir_base=/Users/jiechau/exif_working_dir/UltraFit256/camera_working
