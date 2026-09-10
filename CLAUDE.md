@@ -51,9 +51,9 @@ It was a two-way sync until 2026-08-31. If you are tempted to restore the push p
 
 ## The `camera_latest` archive
 
-`camera_latest/` holds astrophotography — one directory per shoot, `YYYY_MMDD_camera_<place>`. Two skills in `.claude/skills/` work on it, and their `SKILL.md` files are the specification; what follows is only what is not in them.
+`camera_latest/` holds astrophotography — one directory per shoot, `YYYY_MMDD_camera_<place>`. Three skills in `.claude/skills/` work on it, and their `SKILL.md` files are the specification; what follows is only what is not in them.
 
-**The photos are not in the repo.** The skills live here, the shoot folders live on the removable drive. Both scripts resolve a bare shoot-folder name against **`$dest_camera_dir_base`** in `config/config_vars.txt` — read straight out of that file by `camera_latest_dir()`, not passed in — so `organize 2026_0818_camera_jilong_dwl_parking 35` works from the repo checkout. An absolute path, or a relative one that exists from the cwd, is taken as given, so running a script from inside `camera_latest/` still behaves the way it did before the migration. `$CAMERA_LATEST_DIR` overrides the config var for a one-off run.
+**The photos are not in the repo.** The skills live here, the shoot folders live on the removable drive. All three scripts resolve a bare shoot-folder name against **`$dest_camera_dir_base`** in `config/config_vars.txt` — read straight out of that file by `camera_latest_dir()`, not passed in — so `organize 2026_0818_camera_jilong_dwl_parking 35` works from the repo checkout. An absolute path, or a relative one that exists from the cwd, is taken as given, so running a script from inside `camera_latest/` still behaves the way it did before the migration. `$CAMERA_LATEST_DIR` overrides the config var for a one-off run.
 
 **They reuse `$dest_camera_dir_base` deliberately** — it is the same directory `go.sh` modes 1/2/3 sync, and a second key naming one folder is a pair of values that drift apart. Same reasoning as `mnt.bat` reusing `$pw`.
 
@@ -68,11 +68,12 @@ The layout the skills read and write:
   6I-0002-6dii-24mm-8s-f11-iso100/    group: <prefix>-<nnnn>-<camera>-<focal>-<shutter>-<aperture>-<iso>
     lights/jpg/  lights/raw/          what organize-photo-folders writes
     darks/jpg/   darks/raw/           calibration, moved across by hand afterwards
-    _post-processing/                 parked to _dangling/<block>/ on the next organize run
+    _post-processing/                 tag-photo stamps these, then copies them to the root one;
+                                      parked to _dangling/<block>/ on the next organize run
   _diary/                             contact sheet, 3 frames per group; groups only (create-diary)
   00info/                             screenshots, planning notes, weather/sky charts
   _dangling/                          post-processing trees parked here, original path kept
-  _post-processing/                   hand-curated, never touched
+  _post-processing/                   hand-curated; tag-photo only ever adds to it
 ```
 
 - Blocks are **flat** under the shoot folder — camera and focal length are part of the block's own name, not a parent level. The prefix is the year's last digit plus a month letter (`1 A … 9 I, 10 J, 11 K, 12 L`), so September 2026 is `6I`; it comes from the **shoot folder's name**, never from a photo, because a night crosses midnight and must keep one prefix.
@@ -81,8 +82,9 @@ The layout the skills read and write:
 - **`_diary/` holds copies only** and is emptied and rebuilt on every run. A frame that must be in the strip belongs in `00info/`; one dropped straight into the diary is gone on the next run. **Scattered-groups do not reach the diary at all** (changed 2026-09-09) — they are reported by name and frame count and copied nowhere, so a test frame worth keeping also goes in `00info/`.
 - A `.CR2` + `.JPG` sharing a basename is **one** photo. Read EXIF from the `.JPG` — same shooting data, far faster — and read a whole folder in one `exiftool` call, not one call per file.
 - `SubSecDateTimeOriginal` is what makes a fixed interval detectable: these are 8–30 s exposures, so consecutive frames are seconds apart on the clock alone.
-- Never delete a photo, never rewrite its EXIF in place, never rename an original. Organization happens through directories, and `IMG_0723` keeps its name forever.
-- Neither skill guesses its arguments. No folder named, or no start number for `organize` — ask, then stop. Both are plan-first: run the plan, show it, then `--apply` in the same turn.
+- Never delete a photo, never rename an original, and never rewrite an original's EXIF. Organization happens through directories, and `IMG_0723` keeps its name forever. **`tag-photo` is the one skill that writes EXIF at all**, and only ever into a group's `_post-processing/` — derived files the owner can re-export. That is also why it leaves a copy of an original sitting in there alone: that file carries the camera's own GPS and true timestamp, and overwriting them would put a made-up record over a real one.
+- **`tag-photo` dates a group's products off the *last* frame of that group's `lights/jpg/`**, +1s per file in filename-length order, and recomputes that from `lights/` every run — so it is idempotent and the seconds never drift. A body with no GPS (the 550d) yields time only; nothing is borrowed from another block to fill the gap. Its copy up into the root `_post-processing/` is **additive** — that folder may hold the owner's own work, so unlike `_diary/` it is never emptied.
+- No skill guesses its arguments. No folder named, or no start number for `organize` — ask, then stop. All three are plan-first: run the plan, show it, then `--apply` in the same turn.
 
 The archive **used to carry its own `CLAUDE.md`, `README.md` and `.claude/skills/`**; they moved here on 2026-09-09 so the shoot drive stays pure storage. Don't put documentation back on the drive, and note `readme.txt` there is the owner's private memo under the same rule as this repo's own.
 
