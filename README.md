@@ -45,7 +45,7 @@ Media reaches the organized library two different ways. Both end up under `Ultra
 | source | Dropbox Camera Uploads folders | SD card from a real camera, imported by hand |
 | destination | `photo_latest/`, `video_latest/` | `camera_latest/` |
 | created by | `. go.sh 0` (exiftool renames by date) | you, by hand — then the two camera skills |
-| layout | `YYYY_MMDD_event/YYYY-MM-DD HH.MM.SS.jpg` | `YYYY_MMDD_camera_event/<block>/lights/{jpg,raw}` |
+| layout | `YYYY_MMDD_event/YYYY-MM-DD HH.MM.SS.jpg` | `YYYY_MMDD_camera_event/<block>/00_Original/{RAW,JPG}` |
 | contents | jpg, png, mov, mp4 | JPG + RAW (CR2), tif |
 | replicated by | `. go.sh 1` / `2` / `3` | `. go.sh 1` / `2` / `3` |
 
@@ -256,65 +256,90 @@ It never calls `net use /delete`. That would remove a remembered mapping for the
 
 ## The `camera_latest` archive
 
-`camera_latest/` is the astrophotography half of the library — one directory per shoot, named `YYYY_MMDD_camera_<place_or_subject>`, JPG alongside CR2 RAW. `go.sh` only mirrors it; the sorting is two Claude Code skills in `.claude/skills/`:
+`camera_latest/` is the astrophotography half of the library — one directory per shoot, named `YYYY_MMDD_camera_<place_or_subject>`, JPG alongside CR2 RAW. `go.sh` only mirrors it; the sorting is three Claude Code skills in `.claude/skills/`:
 
 | skill | what it does |
 |---|---|
-| `organize-photo-folders` | reads EXIF, detects intervalometer runs, re-blocks the whole shoot folder into `<block>/lights/{jpg,raw}` |
-| `create-diary` | rebuilds the shoot's `_diary/` contact sheet — everything in `00info/`, three frames per run, every test frame, in capture order |
+| `organize-photo-folders` | reads EXIF, detects intervalometer runs, re-blocks the whole shoot folder into `<block>/00_Original/{RAW,JPG}` and scaffolds each block for the hand work that follows |
+| `create-diary` | rebuilds the shoot's `_diary/` contact sheet — everything in `00info/`, three frames per run, in capture order |
+| `tag-photo` | stamps each `_post-processing/` export with the GPS and capture time of the frames it was made from, then collects them at the shoot root |
 
-Both used to live on the drive itself, in `camera_latest/.claude/`. They moved into this repo on 2026-09-09 so the drive stays pure storage: no `.claude/`, no `README.md`, no `CLAUDE.md` out there.
+**[`organize-photo-folders.md`](organize-photo-folders.md) is the specification** for all three — layout, grouping, naming, `_dangling/`. What follows here is the tour.
+
+They used to live on the drive itself, in `camera_latest/.claude/`. They moved into this repo on 2026-09-09 so the drive stays pure storage: no `.claude/`, no `README.md`, no `CLAUDE.md` out there.
 
 ### The shoot folder is a name, not a path
 
-The skills are here, the photos are not. Both scripts read **`$dest_camera_dir_base`** out of `config/config_vars.txt` — the same variable `go.sh` syncs that library from — and resolve a bare shoot-folder name against it. So from the repo checkout:
+The skills are here, the photos are not. Each script reads the base directory out of `config/config_vars.txt` itself and resolves a bare shoot-folder name against it — **`$dest_camera_dir_base`** on macOS (the same variable `go.sh` syncs that library from), **`$dest_camera_dir_copy`** on Windows 11. Those are two machines and two drives, not two names for one folder. So from the repo checkout:
 
 ```bash
 $ cd ~/life_codes/exiftool_mac
-$ python3 .claude/skills/organize-photo-folders/organize.py 2026_0821_camera_ccd_roof 1          # plan
-$ python3 .claude/skills/organize-photo-folders/organize.py 2026_0821_camera_ccd_roof 1 --apply  # move
-$ python3 .claude/skills/create-diary/diary.py 2026_0821_camera_ccd_roof                         # plan
-$ python3 .claude/skills/create-diary/diary.py 2026_0821_camera_ccd_roof --apply                 # rebuild
+$ python3 .claude/skills/organize-photo-folders/organize.py 2026_0907_camera_daw_bay 10          # plan
+$ python3 .claude/skills/organize-photo-folders/organize.py 2026_0907_camera_daw_bay 10 --apply  # move
+$ python3 .claude/skills/create-diary/diary.py 2026_0907_camera_daw_bay --apply                  # rebuild
+$ python3 .claude/skills/tag-photo/tag.py 2026_0907_camera_daw_bay --apply                       # stamp
 ```
 
-In Claude Code, ask by name instead: *"organize the folder 2026_0821_camera_ccd_roof 1"*, *"create diary for 2026_0821_camera_ccd_roof"*.
+In Claude Code, ask by name instead: *"organize the folder 2026_0907_camera_daw_bay 10"*, *"create diary for 2026_0907_camera_daw_bay"*, *"tag photo 2026_0907_camera_daw_bay"*.
 
-An absolute path still works, and so does a relative one that exists from wherever you are — running a script from inside `camera_latest/` behaves exactly as it did before the move. `CAMERA_LATEST_DIR=/some/other/drive` overrides the config var for one run.
+An absolute path still works, and so does a relative one that exists from wherever you are — running a script from inside `camera_latest/` behaves exactly as it did before the move. `CAMERA_LATEST_DIR=/some/other/drive` overrides the config var for one run, on either platform.
 
-A bare name is only resolved after `camera_latest/it_exists.txt` is found — the same [sentinel](#the-it_existstxt-sentinel) the sync modes use. `UltraFit256` is removable, an unmounted mount point still resolves as an empty directory, and `organize.py` moves and deletes files; a missing sentinel stops the run.
+A bare name is only resolved after `camera_latest/it_exists.txt` is found — the same [sentinel](#the-it_existstxt-sentinel) the sync modes use. `UltraFit256` is removable, an unmounted mount point still resolves as an empty directory, and `organize.py` moves and deletes files; a missing sentinel stops the run. The check is kept on Windows too, where it catches a mistyped base instead.
+
+**exiftool has to be found before anything else happens.** `--exiftool PATH`, then `$EXIFTOOL`, then `PATH`, then the usual install locations. If none of them answers, the run stops and asks where it is rather than guessing at a binary.
 
 ### Layout of an organized shoot
 
 ```
-2026_0821_camera_ccd_roof/
-  6I-0001-6dii/                       scattered-group — the name stops at the camera
-    lights/jpg/  lights/raw/
-  6I-0002-6dii-24mm-8s-f11-iso100/    group — <prefix>-<nnnn>-<camera>-<focal>-<shutter>-<aperture>-<iso>
-    lights/jpg/  lights/raw/          what organize-photo-folders writes
-    darks/jpg/   darks/raw/           calibration — moved across by hand, afterwards
-    _post-processing/                 parked to _dangling/<block>/ on the next organize run
-  6I-0003-550d-18mm-30s-f11-iso100/   a second body from the same night sits alongside
-  _diary/                             contact sheet, 3 frames per group (create-diary)
-  00info/                             screenshots, planning notes, weather/sky charts
-  _dangling/                          post-processing trees parked here, original path kept
-  _post-processing/                   hand-curated, never touched
+2026_0907_camera_daw_bay/
+  6I-0010/                              scattered-group spanning two bodies — the name stops early
+    _00info/  _post-processing/
+    00_Original/{RAW,JPG}
+  6I-0011-6dii-24mm-8s-f1.8-iso3200/    group — <prefix>-<nnnn>-<camera>-<focal>-<shutter>-<aperture>-<iso>
+    _00info/  _post-processing/
+    00_Original/{RAW,JPG}               every frame in the block — the only thing organize fills
+    01_Astro/                           _post-processing/ _CameraRaw0/ _CameraRaw1/
+                                        lights/{RAW,JPG}  darks/{RAW,JPG}
+    02_Landscape/                       _post-processing/ lights/{RAW,JPG} darks/{RAW,JPG}
+    03_Portraits/                       _post-processing/ _CameraRaw0/ lights/{RAW,JPG}
+    04_tests/{RAW,JPG}
+  6I-0013-550d-18mm-15s-f3.5-iso1600/   a second body from the same night sits alongside
+  _diary/                               contact sheet, 3 frames per group (create-diary)
+  00info/                               screenshots, planning notes, weather/sky charts
+  _dangling/                            work parked here on a re-organize, original path kept
+  _post-processing/                     hand-curated; tag-photo only ever adds to it
 ```
 
-- A **group** is an intervalometer run: consecutive frames at a fixed interval, so the settings are constant and go in the name. A **scattered-group** is the test and framing shots between runs — settings vary, so the name stops at the camera.
+- A **group** is an intervalometer run: at least three consecutive frames that share camera, focal length, shutter, aperture and ISO *and* sit at a fixed interval. All five go in the name, and are true of every frame in it. A **scattered-group** is the test and framing shots between runs; its name carries only what every frame in it agrees on — the camera, then the focal length — and stops at the first field that differs, so `6I-0014-550d` is one body at mixed focal lengths and a bare `6I-0015` spans two bodies.
 - The prefix is the year's last digit plus a month letter (`1 A … 9 I, 10 J, 11 K, 12 L`): August 2026 is `6H`, September 2026 is `6I`. It comes from the shoot folder's own name, so one night keeps one prefix across midnight.
-- `lights/` is the one level `organize-photo-folders` writes. `darks/`, `flats/` and `bias/` are made **by hand afterwards**; re-running the organize skill pulls them back into `lights/` and they have to be moved out again — expected, not a fault.
-- **A leading `_` (or `.`) protects a directory at every depth.** That is how to park anything anywhere and have it survive a re-run. `00info/` and `*diary/` are protected at the root only. The exception is a post-processing tree below the root: it goes to `_dangling/` with its path kept, because blocks are renumbered on every run and that path is the record of which block the work came from.
+- **`00_Original/` is the only directory `organize-photo-folders` fills.** The category trees are created empty and are yours to file into; nothing ever reads them back as a photo source. `RAW` and `JPG` are upper-case — macOS would forgive `raw`, the NAS will not.
+- **Re-running is normal**, and is how a shoot gets renumbered. An already-organized block is recognised by its `00_Original/` and re-read from there alone; *everything else in it* — a filed `01_Astro/lights/`, a `_CameraRaw0/`, a `_post-processing/` — is parked under `_dangling/` with its original path kept first, because the block's number is about to change and that path is the only record of where the work came from. Empty scaffolding from the previous run is removed rather than parked, so a second run over an untouched folder is a genuine no-op.
+- **A leading `_` (or `.`) protects a directory at the root**: `00info/`, `*diary/`, `_post-processing/` and `_dangling/` are yours and are never read or moved. Below the root a `_` name means the opposite — it is hand work inside a block that is about to be renumbered, so it gets parked.
 - Originals are never renamed, never deleted, and their EXIF is never rewritten. All organization happens through directories.
 
 ### The diary
 
-`_diary/` is the night read as one ordered strip: everything in `00info/` and the first, middle and last frame of each group — read from `<block>/lights/jpg/` only — numbered `d000010_`, `d000020_`, … in capture order, e.g. `d000030_6I-0002-6dii-24mm-8s-f11-iso100_IMG_0013.JPG`.
+`_diary/` is the night read as one ordered strip: everything in `00info/` and the first, middle and last frame of each group, numbered `d000010_`, `d000020_`, … in capture order, e.g. `d000030_6I-0011-6dii-24mm-8s-f1.8-iso3200_IMG_0013.JPG`.
+
+Frames come from the categories you have filed a block into — `01_Astro/lights/JPG`, `02_Landscape/lights/JPG`, `03_Portraits/lights/JPG` — merged into one capture-time stream, so a block worked across two categories still reads as one block. A block you have not filed yet, which is every block the moment `organize-photo-folders` finishes, falls back to its `00_Original/JPG`. `darks/` never reaches the strip, and neither does `RAW/`.
 
 **Scattered-groups are left out.** The test and framing shots are the fumbling before a run, not the night's story, so the diary reports each one by name and frame count and copies none of it. A test frame that does belong in the strip goes in `00info/` like anything else.
 
 It holds **copies only** and is emptied and refilled on every run, which is why there is no undo and nothing set aside. **If a photo must appear in the strip, put it in `00info/`** — one dropped straight into `_diary/` is gone on the next run.
 
-Neither skill has an undo or a manifest. Run the plan, read it, then apply.
+### Tagging the exports
+
+A stacked TIF out of Sequator carries no GPS and whatever date the stacker felt like writing. `tag-photo` puts them back, from the frames the stack was made from.
+
+A block has up to four `_post-processing/` directories and **each is dated off its own frames**: `01_Astro/`'s off `01_Astro/lights/JPG`, `02_Landscape/`'s off its own, and the block's own off `00_Original/JPG`. The reference is the last frame by capture time — the moment that run finished — and the products get +1 s, +2 s, … in filename-length order, so `..._thor.jpg` lands before `..._thor_SequatorStacking30.tif`.
+
+**Nothing is borrowed.** A category holding work with an empty `lights/JPG` has no run to date against, and no sibling category or other block fills the gap: the run stops and asks which photo to use, then takes it as `--reference '<block>/<category>=<path>'`. A file that is only a copy of an original frame is left completely alone — it already carries the camera's own GPS and true timestamp. A body with no GPS (the 550d) yields time only.
+
+Everything stamped is then copied up into the shoot root's `_post-processing/`. That copy is **additive**: the root folder is hand-curated and nothing in it is ever deleted.
+
+Running it twice is safe — the time is always recomputed from the reference frame, never from the target's current tags, so the seconds cannot drift.
+
+None of the three has an undo or a manifest. Run the plan, read it, then apply.
 
 
 ## EXIF repair tools

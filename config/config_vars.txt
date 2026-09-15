@@ -5,9 +5,12 @@ problem_dir_base=/Users/jiechau/exif_working_dir/_tmp_exiftool_mac/problem_ones
 # remote
 dest_photo_dir_base=/Users/jiechau/exif_working_dir/UltraFit256/photo_latest
 dest_video_dir_base=/Users/jiechau/exif_working_dir/UltraFit256/video_latest
-# camera_latest 也是 organize-photo-folders / create-diary 兩個 skill 的根目錄，
+# camera_latest 也是 organize-photo-folders / create-diary / tag-photo 三個 skill 的根目錄，
 # 它們直接讀這一行來把「資料夾名字」解析成完整路徑（$CAMERA_LATEST_DIR 可覆寫）
 dest_camera_dir_base=/Users/jiechau/exif_working_dir/UltraFit256/camera_latest
+# 同樣三個 skill 在 Windows 11 上讀這一行（os.name == 'nt'）。這不是同一個資料夾開兩個 key，
+# 是兩台不同機器、兩顆不同的碟，路徑本來就不一樣。值不能有空格，因為 go.sh 會 source 這個檔。
+dest_camera_dir_copy=C:/Users/jiech/Downloads/本機拷貝
 # camera_working: . go.sh camera_working (cw) 專用，方向是 nas -> 本機
 dest_camera_working_dir_base=/Users/jiechau/exif_working_dir/UltraFit256/camera_working
 remote_918_video_dir_base=video/video_latest

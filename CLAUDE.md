@@ -51,39 +51,25 @@ It was a two-way sync until 2026-08-31. If you are tempted to restore the push p
 
 ## The `camera_latest` archive
 
-`camera_latest/` holds astrophotography — one directory per shoot, `YYYY_MMDD_camera_<place>`. Three skills in `.claude/skills/` work on it, and their `SKILL.md` files are the specification; what follows is only what is not in them.
+`camera_latest/` holds astrophotography — one directory per shoot, `YYYY_MMDD_camera_<place>`. Three skills in `.claude/skills/` work on it, and **[`organize-photo-folders.md`](organize-photo-folders.md) at the repo root is the specification** — the block layout, the grouping rules, the naming rules, the `_dangling/` rules, and what each skill reads. The `SKILL.md` files are operational: how to invoke a skill, what to ask before running it, what to say when reading its plan back. What follows here is only what is in neither.
 
-**The photos are not in the repo.** The skills live here, the shoot folders live on the removable drive. All three scripts resolve a bare shoot-folder name against **`$dest_camera_dir_base`** in `config/config_vars.txt` — read straight out of that file by `camera_latest_dir()`, not passed in — so `organize 2026_0818_camera_jilong_dwl_parking 35` works from the repo checkout. An absolute path, or a relative one that exists from the cwd, is taken as given, so running a script from inside `camera_latest/` still behaves the way it did before the migration. `$CAMERA_LATEST_DIR` overrides the config var for a one-off run.
+**The photos are not in the repo.** The skills live here, the shoot folders live on the removable drive. All three scripts resolve a bare shoot-folder name out of `config/config_vars.txt` themselves, so `organize 2026_0907_camera_daw_bay 10` works from the repo checkout. An absolute path, or a relative one that exists from the cwd, is taken as given. `$CAMERA_LATEST_DIR` overrides the config var for a one-off run, on either platform.
 
-**They reuse `$dest_camera_dir_base` deliberately** — it is the same directory `go.sh` modes 1/2/3 sync, and a second key naming one folder is a pair of values that drift apart. Same reasoning as `mnt.bat` reusing `$pw`.
+**The base directory is per-platform**: `$dest_camera_dir_base` on macOS, `$dest_camera_dir_copy` on Windows 11 (`os.name == 'nt'`). That is *not* the "two keys naming one folder" this file warns about under Secrets — these are two different machines' paths to two different drives, and collapsing them would be the actual mistake. The macOS key is deliberately the same one `go.sh` modes 1/2/3 sync.
 
-**And they check `it_exists.txt` before resolving a name**, for the reason the rest of the repo does: `UltraFit256` is removable, an unmounted mount point still resolves as an empty directory, and `organize.py` moves and deletes files. A missing sentinel stops the run rather than presenting an empty directory as a shoot folder.
+**And they check `it_exists.txt` before resolving a name**, on both platforms, for the reason the rest of the repo does: `UltraFit256` is removable, an unmounted mount point still resolves as an empty directory, and `organize.py` moves and deletes files. On Windows the drive does not go away, but the rule is kept identical so there is one rule to remember, and it still catches a mistyped base.
 
-The layout the skills read and write:
+**`.claude/skills/_shared/camera_lib.py` is the shared contract** — the layout constants, the block-name regexes, the config lookup, `find_exiftool()`, `read_dates()`. A directory under `.claude/skills/` with no `SKILL.md` is not discovered as a skill, which is why it can live there. Before this existed the three scripts each carried their own byte-identical copy of the config lookup and their own spelling of the layout, and they agreed only by luck. **Change a layout name in one place: that file.** It also means each script is positionally coupled to `<repo>/.claude/skills/<dir>/<file>.py` — `repo_root()` walks up exactly four levels.
 
-```
-2026_0821_camera_ccd_roof/
-  6I-0001-6dii/                       scattered-group: name stops at the camera
-    lights/jpg/  lights/raw/
-  6I-0002-6dii-24mm-8s-f11-iso100/    group: <prefix>-<nnnn>-<camera>-<focal>-<shutter>-<aperture>-<iso>
-    lights/jpg/  lights/raw/          what organize-photo-folders writes
-    darks/jpg/   darks/raw/           calibration, moved across by hand afterwards
-    _post-processing/                 tag-photo stamps these, then copies them to the root one;
-                                      parked to _dangling/<block>/ on the next organize run
-  _diary/                             contact sheet, 3 frames per group; groups only (create-diary)
-  00info/                             screenshots, planning notes, weather/sky charts
-  _dangling/                          post-processing trees parked here, original path kept
-  _post-processing/                   hand-curated; tag-photo only ever adds to it
-```
-
-- Blocks are **flat** under the shoot folder — camera and focal length are part of the block's own name, not a parent level. The prefix is the year's last digit plus a month letter (`1 A … 9 I, 10 J, 11 K, 12 L`), so September 2026 is `6I`; it comes from the **shoot folder's name**, never from a photo, because a night crosses midnight and must keep one prefix.
-- **A leading `_` or `.` protects a directory at every depth** — that is how anything gets parked anywhere and survives a re-run. `00info/` and `*diary/` are protected at the **root only**. The one exception is a post-processing tree below the root, parked under `_dangling/` with its path kept, because blocks get renumbered and the path is the record of which block the work came from.
-- **`lights/` is the only level `organize.py` writes.** `darks/`, `flats/` and `bias/` are hand-made afterwards, and re-running the skill pulls them back into `lights/` — expected, and the report must say so.
-- **`_diary/` holds copies only** and is emptied and rebuilt on every run. A frame that must be in the strip belongs in `00info/`; one dropped straight into the diary is gone on the next run. **Scattered-groups do not reach the diary at all** (changed 2026-09-09) — they are reported by name and frame count and copied nowhere, so a test frame worth keeping also goes in `00info/`.
+- Blocks are **flat** under the shoot folder — camera and focal length are part of the block's own name, not a parent level.
+- **`00_Original/` is the only directory `organize.py` fills.** `01_Astro/`, `02_Landscape/`, `03_Portraits/` and `04_tests/` are created empty and are never read back as a photo source; the owner files into them by hand. `RAW` and `JPG` are **upper-case** — macOS would forgive `raw`, ext4 on the NAS will not.
+- **Re-running `organize` on an organized block re-reads its `00_Original/` only**, and parks everything else in that block under `_dangling/` with its path kept, because the block is about to be renumbered. Empty scaffolding from the previous run is removed rather than parked, which is what keeps a re-run idempotent instead of filling `_dangling/` with hundreds of empty directories.
 - A `.CR2` + `.JPG` sharing a basename is **one** photo. Read EXIF from the `.JPG` — same shooting data, far faster — and read a whole folder in one `exiftool` call, not one call per file.
 - `SubSecDateTimeOriginal` is what makes a fixed interval detectable: these are 8–30 s exposures, so consecutive frames are seconds apart on the clock alone.
-- Never delete a photo, never rename an original, and never rewrite an original's EXIF. Organization happens through directories, and `IMG_0723` keeps its name forever. **`tag-photo` is the one skill that writes EXIF at all**, and only ever into a group's `_post-processing/` — derived files the owner can re-export. That is also why it leaves a copy of an original sitting in there alone: that file carries the camera's own GPS and true timestamp, and overwriting them would put a made-up record over a real one.
-- **`tag-photo` dates a group's products off the *last* frame of that group's `lights/jpg/`**, +1s per file in filename-length order, and recomputes that from `lights/` every run — so it is idempotent and the seconds never drift. A body with no GPS (the 550d) yields time only; nothing is borrowed from another block to fill the gap. Its copy up into the root `_post-processing/` is **additive** — that folder may hold the owner's own work, so unlike `_diary/` it is never emptied.
+- **The shooting signature is a grouping key, not a warning.** A set group holds camera, focal, shutter, aperture and ISO constant *and* sits at a fixed interval, so its directory name is true of every frame in it. There is no per-camera pass any more: two bodies on one night interleave in time order.
+- Never delete a photo, never rename an original, and never rewrite an original's EXIF. Organization happens through directories, and `IMG_0723` keeps its name forever. **`tag-photo` is the one skill that writes EXIF at all**, and only ever into a `_post-processing/` — derived files the owner can re-export. That is also why it leaves a copy of an original sitting in there alone: that file carries the camera's own GPS and true timestamp, and overwriting them would put a made-up record over a real one.
+- **Nothing is borrowed to fill a gap.** `tag-photo` dates each `_post-processing/` off its own frames, and a category with none stops the run and asks for a reference photo rather than reaching for a sibling's.
+- **If `exiftool` is not found, ask — do not install, do not guess a path.** All three take `--exiftool PATH`, and the failure message lists what was tried.
 - No skill guesses its arguments. No folder named, or no start number for `organize` — ask, then stop. All three are plan-first: run the plan, show it, then `--apply` in the same turn.
 
 The archive **used to carry its own `CLAUDE.md`, `README.md` and `.claude/skills/`**; they moved here on 2026-09-09 so the shoot drive stays pure storage. Don't put documentation back on the drive, and note `readme.txt` there is the owner's private memo under the same rule as this repo's own.

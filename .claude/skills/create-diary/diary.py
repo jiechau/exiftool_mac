@@ -4,9 +4,13 @@
 Scattered-groups -- the blocks whose name stops at the camera, holding the night's test and
 framing shots -- are NOT in the strip. They are counted and reported, never copied.
 
-Frames come from each block's lights/jpg/ -- the light frames, which are the ones worth
-looking at. A block's darks/, flats/ and bias/ are calibration, sorted out by hand after
-organize-photo-folders ran, and the strip has no use for them: they never reach the diary.
+Frames come from the categories the owner has filed a block into: 01_Astro/lights/JPG,
+02_Landscape/lights/JPG and 03_Portraits/lights/JPG, merged and re-sorted into one stream, so a
+block worked across two categories still reads as one block. A block nobody has filed yet -- which
+is every block the moment organize-photo-folders finishes -- falls back to its 00_Original/JPG, so
+the diary works on a folder that has only just been organized.
+
+darks/ is calibration and never reaches the strip, and neither does RAW/, anywhere.
 
 The diary is REBUILT from scratch on every run: it is emptied first, then filled again from
 00info/ and the block directories, so it always mirrors them exactly and never carries a stale
@@ -23,98 +27,31 @@ sitting in 00info/ or a block, so a rebuild puts it straight back. Nothing else 
 holds copies only, so anything in it that the sources do not account for is a leftover of an older
 run and goes. A photo that must appear in the strip belongs in 00info/, not in the diary.
 
+The block layout this reads is written down in organize-photo-folders.md at the repo root.
+
 Plan-only by default; pass --apply to write.
 """
-import argparse, datetime, fnmatch, os, re, shutil, subprocess, sys, time
+import argparse
+import datetime
+import fnmatch
+import os
+import shutil
+import sys
+import time
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '_shared'))
+from camera_lib import (                                            # noqa: E402
+    DIARY, DIARY_GLOB, JPG_SUB, LIGHTS, ORIGINAL,
+    block_dirs, category_lights_jpg, find_exiftool, has_old_layout, is_group, is_junk,
+    original_jpg, read_dates, resolve_folder,
+)
+from camera_lib import INFO_ROOT as INFO                            # noqa: E402
 
 # Blocks hold camera JPEGs; 00info/ and the diary also hold screenshots and hand-added frames.
 SOURCE_EXTS = ('.JPG', '.JPEG')
 DIARY_EXTS = ('.JPG', '.JPEG', '.PNG')
-LIGHTS = 'lights'                           # a block's light frames: <block>/lights/jpg/
-DIARY = '_diary'                            # default; an existing *diary/ at the root wins
-DIARY_GLOB = '*diary'                       # how organize-photo-folders protects it
-INFO = '00info'                              # hand-curated: read from, never written to
-# A block directory: 6I-0035-550d-18mm-15s-f3.5-iso1600. Anything else -- a card dump, a
-# hand-made tree -- is not a block, so a folder holding none has simply not been organized yet.
-BLOCK_RE = re.compile(r'^\d[A-L]-\d{3,}-')
-# Hand-curated names at the root of a shoot folder. None of them is ever a block: '_' and '.'
-# names wherever they sit (_tmp/, _dangling/, _diary/, _info/), 00info/ by name.
-PROTECTED_PREFIXES = ('.', '_')
-PROTECTED_ROOT = {'00info'}
-# A group carries settings; a scattered-group does not. A hand-added label may follow the ISO
-# (6H-0039-6dii-24mm-8s-f1.4-iso200_thor) -- that is still a group. Only groups reach the diary;
-# a block that fails this test is a scattered-group and is reported, not copied.
-GROUP_RE = re.compile(r'-iso\d+(?:_.*)?$', re.I)
-TZ_RE = re.compile(r'[+-]\d{2}:?\d{2}$')    # trailing +08:00 on an exiftool stamp
-# A screenshot with no EXIF date still carries its time in its own name: 2026-08-18 16.35.16.png
-NAME_DT_RE = re.compile(r'(\d{4})-(\d{2})-(\d{2})[ _T](\d{2})[.:-](\d{2})[.:-](\d{2})')
 STEP = 10                                   # gap between diary numbers, a reading convenience
 SEP = '_'                                   # d000010_<source>_<original filename>
-
-
-# ---------------------------------------------------------------- where the photos are
-
-# 這個 skill 住在 exiftool_mac repo 裡，照片不在。照片在 UltraFit256 上的 camera_latest，
-# 路徑就是 go.sh 同步時用的 $dest_camera_dir_base，同一份 config，不另外開一個 key。
-CONFIG_VAR = 'dest_camera_dir_base'         # config/config_vars.txt
-CONFIG_ENV = 'CAMERA_LATEST_DIR'            # 臨時換一顆碟時用
-SENTINEL = 'it_exists.txt'                  # 掛載證明，整個 repo 都靠它擋隨身碟沒插的情況
-
-
-def camera_latest_dir():
-    """$dest_camera_dir_base out of the repo's config/config_vars.txt, or $CAMERA_LATEST_DIR.
-    Returns None if neither is set -- the caller says what that means."""
-    env = os.environ.get(CONFIG_ENV)
-    if env:
-        return os.path.expanduser(env.rstrip('/'))
-    # <repo>/.claude/skills/<skill>/<this file> -> <repo>
-    repo = os.path.abspath(__file__)
-    for _ in range(4):
-        repo = os.path.dirname(repo)
-    try:
-        with open(os.path.join(repo, 'config', 'config_vars.txt')) as fh:
-            for line in fh:
-                key, _, val = line.partition('=')
-                if key.strip() == CONFIG_VAR:
-                    return os.path.expanduser(val.strip().rstrip('/'))
-    except OSError:
-        pass
-    return None
-
-
-def resolve_folder(arg):
-    """A shoot folder is named, not pathed: `2026_0818_camera_jilong_dwl_parking`.
-
-    An absolute path, or a relative one that exists from the cwd, is taken as given -- so
-    running this from inside camera_latest still works. Anything else is a bare shoot-folder
-    name and gets looked up under camera_latest."""
-    arg = arg.rstrip('/')
-    if os.path.isabs(arg) or os.path.isdir(arg):
-        return arg
-    base = camera_latest_dir()
-    if not base:
-        sys.exit(f"no {CONFIG_VAR} in config/config_vars.txt and no ${CONFIG_ENV} set; "
-                 f"cannot tell where '{arg}' lives -- pass a full path instead")
-    # 隨身碟沒掛載時，掛載點還是解析得出來，只是空的。sentinel 不在就是沒掛載。
-    if not os.path.isfile(os.path.join(base, SENTINEL)):
-        sys.exit(f"{base} has no {SENTINEL}: the UltraFit256 drive looks unmounted "
-                 f"(or {CONFIG_VAR} points somewhere else). Refusing to touch '{arg}'")
-    return os.path.join(base, arg)
-
-
-def check_exiftool():
-    """Same precondition as organize-photo-folders: exiftool has to be there and has to run."""
-    exe = shutil.which('exiftool') or '/opt/homebrew/bin/exiftool'
-    if not (os.path.isfile(exe) and os.access(exe, os.X_OK)):
-        sys.exit("exiftool not found on PATH (expected /opt/homebrew/bin/exiftool) -- "
-                 "install it with `brew install exiftool`, then re-run")
-    try:
-        out = subprocess.run([exe, '-ver'], capture_output=True, text=True, timeout=30)
-    except OSError as e:
-        sys.exit(f"exiftool at {exe} is not usable: {e}")
-    if out.returncode != 0 or not out.stdout.strip():
-        sys.exit(f"exiftool at {exe} is not usable: {(out.stderr or '').strip()}")
-    return exe
 
 
 def find_diary(folder):
@@ -125,96 +62,36 @@ def find_diary(folder):
     return hits[0] if hits else DIARY
 
 
-def is_source(fn):
-    return fn.upper().endswith(SOURCE_EXTS)
-
-
 def is_diary_photo(fn):
     return fn.upper().endswith(DIARY_EXTS)
 
 
-def parse_stamp(s):
-    """'2026:08:18 16:36:04+08:00' -> datetime, or None."""
-    if not s or s == '-':
-        return None
-    s = TZ_RE.sub('', s.strip()).strip()
-    fmt = '%Y:%m:%d %H:%M:%S.%f' if '.' in s else '%Y:%m:%d %H:%M:%S'
-    try:
-        return datetime.datetime.strptime(s, fmt)
-    except ValueError:
-        return None
-
-
-def date_from_name(fn):
-    """The time a screenshot carries in its filename, when it carries no EXIF date."""
-    m = NAME_DT_RE.search(fn)
-    if not m:
-        return None
-    try:
-        return datetime.datetime(*(int(g) for g in m.groups()))
-    except ValueError:
-        return None
-
-
-def read_dates(exe, paths, fallback=False):
-    """One exiftool call. Returns ({path: datetime}, [paths with no usable timestamp]).
-
-    Camera frames are read from EXIF alone. With fallback=True — for 00info/ — a file with no EXIF
-    date falls back to the time in its filename, then to FileModifyDate, so screenshots sit in the
-    strip where they belong instead of piling up at its end.
-    """
-    if not paths:
-        return {}, []
-    out = subprocess.run(
-        [exe, '-q', '-T', '-directory', '-filename', '-SubSecDateTimeOriginal',
-         '-DateTimeOriginal', '-CreateDate', '-FileModifyDate', '-@', '-'],
-        input='\n'.join(paths), capture_output=True, text=True)
-    # Keyed by directory+filename: two bodies on one night both produce IMG_0001.JPG.
-    tags = {}
-    for line in out.stdout.splitlines():
-        f = line.rstrip('\n').split('\t')
-        if len(f) < 6:
-            continue
-        tags[os.path.normpath(os.path.join(f[0], f[1]))] = f[2:6]
-
-    dates, unreadable = {}, []
-    for p in paths:
-        t = tags.get(os.path.normpath(p), [])
-        stamp = next((parse_stamp(v) for v in t[:3] if parse_stamp(v)), None)
-        if stamp is None and fallback:
-            stamp = date_from_name(os.path.basename(p)) or (parse_stamp(t[3]) if t else None)
-        if stamp is None:
-            unreadable.append(p)
-        else:
-            dates[p] = stamp
-    return dates, unreadable
-
-
 def find_blocks(folder):
-    """Block directories that hold a lights/jpg/ subdirectory, in block-number order.
+    """Every block directory and the frames its diary entry is built from.
 
-    Returns (blocks, stale): `stale` is the blocks carrying a bare jpg/ and no lights/ -- the
-    layout organize-photo-folders wrote before lights/ existed. They are reported rather than
-    read, because a folder in that shape wants re-organizing, not a diary built around it.
-
-    The diary and the other hand-curated root names are never blocks, whatever they are called.
+    Returns (blocks, stale). Each block is (name, where-the-frames-came-from, [full paths]).
+    `stale` is the blocks still in the pre-00_Original layout -- a bare lights/jpg/ or an even
+    older jpg/. They are reported rather than read, because a folder in that shape wants
+    re-organizing, not a diary built around it.
     """
     blocks, stale = [], []
-    for name in sorted(os.listdir(folder)):
-        if (name.startswith(PROTECTED_PREFIXES) or name in PROTECTED_ROOT
-                or fnmatch.fnmatch(name, DIARY_GLOB)):
+    for name in block_dirs(folder):
+        bdir = os.path.join(folder, name)
+        if has_old_layout(bdir):
+            stale.append(name)
             continue
-        if not BLOCK_RE.match(name):
-            continue
-        jpgdir = os.path.join(folder, name, LIGHTS, 'jpg')
-        if not os.path.isdir(jpgdir):
-            if os.path.isdir(os.path.join(folder, name, 'jpg')):
-                stale.append(name)
-            continue
-        files = sorted(f for f in os.listdir(jpgdir)
-                       if is_source(f) and os.path.isfile(os.path.join(jpgdir, f)))
-        if files:
-            blocks.append((name, jpgdir, files))
+        # What the owner has filed comes first; 00_Original/ is the fall-back, not the preference,
+        # because a filed block says which frames were worth keeping and the pool does not.
+        cats = category_lights_jpg(bdir)
+        if cats:
+            label = '+'.join(c for c, _, _ in cats) + f'/{LIGHTS}/{JPG_SUB}'
+            paths = [os.path.join(d, f) for _, d, fs in cats for f in fs]
+        else:
+            d, files = original_jpg(bdir)
+            label = f'{ORIGINAL}/{JPG_SUB}'
+            paths = [os.path.join(d, f) for f in files]
+        if paths:
+            blocks.append((name, label, paths))
     return blocks, stale
 
 
@@ -241,12 +118,12 @@ def build_plan(exe, folder, blocks, infodir, infofiles):
     """
     # Scattered-groups are the test and framing shots. They are not part of the night's story,
     # so nothing of them reaches the strip -- not even their timestamps get read.
-    groups = [b for b in blocks if GROUP_RE.search(b[0])]
-    skipped = [(name, len(fs)) for name, _, fs in blocks if not GROUP_RE.search(name)]
+    groups = [b for b in blocks if is_group(b[0])]
+    skipped = [(name, len(ps)) for name, _, ps in blocks if not is_group(name)]
     if not groups:
         print(f"  warning: no group directories (a name carrying -iso<n>) in this folder; "
               f"the diary is {INFO}/ only", file=sys.stderr)
-    all_jpgs = [os.path.join(d, f) for _, d, fs in groups for f in fs]
+    all_jpgs = [p for _, _, ps in groups for p in ps]
     dates, unreadable = read_dates(exe, all_jpgs)
     if unreadable:
         print(f"  warning: no usable DateTimeOriginal, ignored: "
@@ -255,8 +132,8 @@ def build_plan(exe, folder, blocks, infodir, infofiles):
 
     units = []                                  # each unit is a list of entries placed together
 
-    def entry(source, kind, n, src, t):
-        return dict(source=source, kind=kind, n=n, src=src,
+    def entry(source, kind, n, src, t, label=''):
+        return dict(source=source, kind=kind, n=n, src=src, label=label,
                     stem=f"{source}{SEP}{os.path.basename(src)}", t=t)
 
     # 00info/ first: the night's screenshots, charts and phone frames, every one of them.
@@ -266,18 +143,21 @@ def build_plan(exe, folder, blocks, infodir, infofiles):
         print(f"  warning: {INFO}/{os.path.basename(p)} has no timestamp of any kind "
               f"(EXIF, filename or mtime), sorted last", file=sys.stderr)
     for p in info_paths:
-        units.append([entry(INFO, 'info', len(info_paths), p, idates.get(p))])
+        units.append([entry(INFO, 'info', len(info_paths), p, idates.get(p), label='(all)')])
 
-    for name, jpgdir, files in groups:
-        ordered = sorted((p for p in (os.path.join(jpgdir, f) for f in files) if p in dates),
+    for name, label, paths in groups:
+        # Re-sorted by capture time, not by the category they were filed into: a block worked
+        # across two categories is still one run and reads as one.
+        ordered = sorted((p for p in paths if p in dates),
                          key=lambda p: (dates[p], os.path.basename(p)))
         if not ordered:
-            print(f"  warning: {name}: no frame with a readable timestamp, skipped", file=sys.stderr)
+            print(f"  warning: {name}: no frame with a readable timestamp, skipped",
+                  file=sys.stderr)
             continue
         # First, middle, last -- de-duplicated, so a one- or two-frame group contributes
         # one or two frames rather than the same file twice.
         idx = sorted({0, len(ordered) // 2, len(ordered) - 1})
-        units.append([entry(name, 'group', len(ordered), ordered[i], dates[ordered[i]])
+        units.append([entry(name, 'group', len(ordered), ordered[i], dates[ordered[i]], label)
                       for i in idx])
 
     # A unit is placed by its first frame. Undated ones sort last, by name, rather than
@@ -299,7 +179,7 @@ def current_diary(folder):
     if not os.path.isdir(diary):
         return []
     return [fn for fn in sorted(os.listdir(diary))
-            if not fn.startswith('.') and os.path.isfile(os.path.join(diary, fn))]
+            if not is_junk(fn) and os.path.isfile(os.path.join(diary, fn))]
 
 
 def print_plan(plan, existing, info_other, skipped):
@@ -307,11 +187,13 @@ def print_plan(plan, existing, info_other, skipped):
     # and would otherwise take three rows.
     rows = {}
     for p in plan:
-        r = rows.setdefault(p['source'], dict(kind=p['kind'], n=p['n'], picks=[]))
+        r = rows.setdefault(p['source'],
+                            dict(kind=p['kind'], n=p['n'], label=p['label'], picks=[]))
         r['picks'].append(os.path.basename(p['src']))
 
     w = max([len('SOURCE')] + [len(s) for s in rows])              # block names are long now
-    print(f"{'SOURCE':<{w}} {'TYPE':<9} {'N':>4}  PICKED")
+    lw = max([len('FROM')] + [len(r['label']) for r in rows.values()])
+    print(f"{'SOURCE':<{w}} {'TYPE':<9} {'N':>4}  {'FROM':<{lw}}  PICKED")
     for source, r in rows.items():
         if r['kind'] == 'group':
             pick = f"first+middle+last: {', '.join(r['picks'])}"
@@ -319,7 +201,14 @@ def print_plan(plan, existing, info_other, skipped):
             pick = f"all {len(r['picks'])}: {', '.join(r['picks'][:3])}"
             if len(r['picks']) > 3:
                 pick += ' ...'
-        print(f"{source:<{w}} {r['kind']:<9} {r['n']:>4}  {pick}")
+        print(f"{source:<{w}} {r['kind']:<9} {r['n']:>4}  {r['label']:<{lw}}  {pick}")
+    fallbacks = [s for s, r in rows.items()
+                 if r['kind'] == 'group' and r['label'].startswith(ORIGINAL)]
+    if fallbacks:
+        print(f"\n{len(fallbacks)} group(s) have nothing filed under "
+              f"{'/'.join(('<category>', LIGHTS, JPG_SUB))} yet, so the strip is built from "
+              f"{ORIGINAL}/{JPG_SUB}: {', '.join(fallbacks[:5])}"
+              f"{' ...' if len(fallbacks) > 5 else ''}")
     if skipped:
         print(f"\nscattered-groups, left out of the diary by design — {len(skipped)} block(s), "
               f"{sum(c for _, c in skipped)} frames: "
@@ -357,14 +246,15 @@ def apply_plan(folder, plan, existing):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('folder')
+    ap.add_argument('--exiftool', help='path to exiftool, when it is not on PATH')
     ap.add_argument('--apply', action='store_true', help='write the diary (default: plan only)')
     args = ap.parse_args()
 
     global DIARY
+    exe, _ = find_exiftool(args.exiftool)
     folder = resolve_folder(args.folder)
     if not os.path.isdir(folder):
         sys.exit(f"folder not found: {folder}")
-    exe = check_exiftool()
     DIARY = find_diary(folder)
 
     t0 = time.time()
@@ -373,13 +263,15 @@ def main():
                  f"directories together, so {INFO}/ must exist")
     blocks, stale = find_blocks(folder)
     if stale:
-        print(f"  warning: {len(stale)} block(s) hold a bare jpg/ and no {LIGHTS}/ -- the old "
-              f"layout, skipped: {', '.join(stale[:5])}{' ...' if len(stale) > 5 else ''}\n"
-              f"  re-run organize-photo-folders on {folder} to move them under {LIGHTS}/",
+        print(f"  warning: {len(stale)} block(s) are still in the old layout (a bare "
+              f"{LIGHTS}/jpg/ and no {ORIGINAL}/), skipped: "
+              f"{', '.join(stale[:5])}{' ...' if len(stale) > 5 else ''}\n"
+              f"  re-run organize-photo-folders on {folder} to move them into {ORIGINAL}/",
               file=sys.stderr)
     if not blocks:
-        sys.exit(f"no block directories with a {LIGHTS}/jpg/ subdirectory in {folder} -- "
-                 f"expected names like 6I-0035-550d-18mm-15s-f3.5-iso1600/{LIGHTS}/jpg "
+        sys.exit(f"no block directories with frames in {folder} -- expected names like "
+                 f"6I-0035-550d-18mm-15s-f3.5-iso1600 holding "
+                 f"01_Astro/{LIGHTS}/{JPG_SUB}/ or {ORIGINAL}/{JPG_SUB}/ "
                  f"(organize the folder first)")
     infodir, infofiles, info_other = find00info(folder)
     plan, skipped = build_plan(exe, folder, blocks, infodir, infofiles)
