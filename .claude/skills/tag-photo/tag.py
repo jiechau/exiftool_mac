@@ -52,7 +52,7 @@ import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '_shared'))
 from camera_lib import (                                            # noqa: E402
-    CATEGORIES, DANGLING, JPG_SUB, LIGHTS, ORIGINAL, POSTPROC,
+    CATEGORIES, DANGLING, JPG_SUB, LIGHTS, ORIGINAL, POSTPROC, POSTPROC_ROOT,
     block_dirs, find_exiftool, is_group, is_junk, is_jpg, read_dates, resolve_folder,
 )
 
@@ -223,7 +223,7 @@ def plan_root_copies(folder, plan):
     files this run leaves untouched (copies of originals, and anything untaggable) are worth
     testing for freshness, and for those the test is valid because nothing rewrites them.
     """
-    root = os.path.join(folder, POSTPROC)
+    root = os.path.join(folder, POSTPROC_ROOT)
     copies, clashes, claimed = [], [], {}
     for g in plan:
         products = {f for f, _ in g['products']}
@@ -288,9 +288,9 @@ def print_plan(plan, notes, scattered, unresolved, root, copies, clashes):
     if notes:
         print()
 
-    print(f"COPY UP — into {POSTPROC}/ at the shoot root ({len(copies)} files)")
+    print(f"COPY UP — into {POSTPROC_ROOT}/ at the shoot root ({len(copies)} files)")
     if not os.path.isdir(root):
-        print(f"  {POSTPROC}/ does not exist yet and will be created")
+        print(f"  {POSTPROC_ROOT}/ does not exist yet and will be created")
     for _, dst, key, how in copies:
         print(f"  {how:<7} {os.path.basename(dst)}   <- {key}")
     if not copies:
@@ -377,7 +377,7 @@ def main():
                  f"--skip-unreferenced to leave them alone.")
     if args.apply:
         stamped, failed, copied = apply_plan(exe, plan, copies)
-        print(f"\nstamped {stamped} file(s); copied {copied} file(s) up into {POSTPROC}/")
+        print(f"\nstamped {stamped} file(s); copied {copied} file(s) up into {POSTPROC_ROOT}/")
         for f, err in failed:
             print(f"  FAILED  {f}: {err}", file=sys.stderr)
     else:

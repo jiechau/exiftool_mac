@@ -1,6 +1,6 @@
 ---
 name: tag-photo
-description: Stamp each _post-processing/ output with the GPS and capture time of the frames it was made from, then copy every one of them up into the shoot folder's root _post-processing/. A block has up to four - 01_Astro/, 02_Landscape/, 03_Portraits/ and the block's own - and each is dated off its own lights/JPG (the block's own off 00_Original/JPG), never off a sibling category or another block. Files are ordered by filename length, shortest first, and given the reference frame's time +1s, +2s, ... A directory holding work but with no frames to date it against stops the run and asks for a reference photo. A file that is only a copy of an original frame (IMG_0046.JPG, or 6H-0050-..._IMG_0148.JPG) is left alone. Reads the 6I-0010-... block names organize-photo-folders writes. Use when asked to tag a shoot folder such as "tag photo 2026_0907_camera_daw_bay".
+description: Stamp each _Post-Processing/ output with the GPS and capture time of the frames it was made from, then copy every one of them up into the shoot folder's root _post-processing_jpg/. A block has up to four - 01_Astro/, 02_Landscape/, 03_Portraits/ and the block's own - and each is dated off its own lights/JPG (the block's own off 00_Original/JPG), never off a sibling category or another block. Files are ordered by filename length, shortest first, and given the reference frame's time +1s, +2s, ... A directory holding work but with no frames to date it against stops the run and asks for a reference photo. A file that is only a copy of an original frame (IMG_0046.JPG, or 6H-0050-..._IMG_0148.JPG) is left alone. Reads the 6I-0010-... block names organize-photo-folders writes. Use when asked to tag a shoot folder such as "tag photo 2026_0907_camera_daw_bay".
 ---
 
 # Tag photo
@@ -39,10 +39,10 @@ python3 .claude/skills/tag-photo/tag.py 2026_0907_camera_daw_bay --apply
 
 | directory | reference frames |
 |---|---|
-| `<block>/01_Astro/_post-processing/` | `01_Astro/lights/JPG` |
-| `<block>/02_Landscape/_post-processing/` | `02_Landscape/lights/JPG` |
-| `<block>/03_Portraits/_post-processing/` | `03_Portraits/lights/JPG` |
-| `<block>/_post-processing/` | `00_Original/JPG` |
+| `<block>/01_Astro/_Post-Processing/` | `01_Astro/lights/JPG` |
+| `<block>/02_Landscape/_Post-Processing/` | `02_Landscape/lights/JPG` |
+| `<block>/03_Portraits/_Post-Processing/` | `03_Portraits/lights/JPG` |
+| `<block>/_Post-Processing/` | `00_Original/JPG` |
 
 Always the **last frame by capture time** — the moment that run finished. Products then get
 +1 s, +2 s, … in filename-length order, so `..._thor.jpg` comes before
@@ -63,7 +63,7 @@ python3 .claude/skills/tag-photo/tag.py 2026_0907_camera_daw_bay \
 ```
 
 The key is the directory: `<block>/<category>`, or just `<block>` for the block's own
-`_post-processing/`. Only reach for `--skip-unreferenced` if the owner says to leave those alone.
+`_Post-Processing/`. Only reach for `--skip-unreferenced` if the owner says to leave those alone.
 
 ## What to say when you read the plan back
 
@@ -78,9 +78,9 @@ The key is the directory: `<block>/<category>`, or just `<block>` for the block'
 
 ## Two things it will never do
 
-- **Touch anything outside a `_post-processing/`.** Not `00_Original/`, not `lights/`, not
+- **Touch anything outside a `_Post-Processing/`.** Not `00_Original/`, not `lights/`, not
   `darks/`.
-- **Rewrite a copy of an original.** `IMG_0046.JPG` sitting in a `_post-processing/` already
+- **Rewrite a copy of an original.** `IMG_0046.JPG` sitting in a `_Post-Processing/` already
   carries the camera's own GPS and true timestamp; overwriting them would put a made-up record
   over a real one.
 

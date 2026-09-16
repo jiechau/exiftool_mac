@@ -47,8 +47,11 @@ from camera_lib import (                                            # noqa: E402
     find_exiftool, is_junk, is_photo, is_protected_root, make_tree, resolve_folder,
 )
 
-# Matched at any depth. The underscore form is already covered by the '_' rule; this is here for
-# the underscore-LESS spelling, which would otherwise be walked into and have its photos absorbed.
+# Matched at any depth, and against a lower-cased name: the block collector is '_Post-Processing'
+# and the shoot root's is '_post-processing_jpg', and older folders still carry the all-lower-case
+# spelling -- one lower-cased compare covers the three. The underscore forms are already covered by
+# the '_' rule; the underscore-LESS spelling is the one that would otherwise be walked into and
+# have its photos absorbed.
 POSTPROC_GLOBS = ('post-processing*', '_post-processing*')
 
 CAMERA_SLUGS = {
@@ -109,7 +112,9 @@ def prefix_from_folder(folder):
 # ---------------------------------------------------------------- classification
 
 def is_postproc(name):
-    return any(fnmatch.fnmatch(name, g) for g in POSTPROC_GLOBS)
+    # fnmatch() alone would be case-INsensitive on Windows and case-sensitive on macOS, so
+    # '_Post-Processing' would match on one platform and not the other. Lower-case it here.
+    return any(fnmatch.fnmatchcase(name.lower(), g) for g in POSTPROC_GLOBS)
 
 
 def protected_rel(rel):

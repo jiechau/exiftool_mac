@@ -122,30 +122,30 @@ A set group gets the full working tree:
 ```
 6I-0017-6dii-24mm-8s-f1.8-iso6400/
 ├── _00info/
-├── _post-processing/
+├── _Post-Processing/
 │
 ├── 00_Original/                  <- the ONLY thing this skill fills
 │   ├── RAW/                      every .CR2 in the block
 │   └── JPG/                      every .JPG in the block
 │
 ├── 01_Astro/
-│   ├── _post-processing/  _CameraRaw0/  _CameraRaw1/
+│   ├── _Post-Processing/  _CameraRaw0/  _CameraRaw1/
 │   ├── lights/{RAW,JPG}
 │   └── darks/{RAW,JPG}
 │
 ├── 02_Landscape/
-│   ├── _post-processing/
+│   ├── _Post-Processing/
 │   ├── lights/{RAW,JPG}
 │   └── darks/{RAW,JPG}
 │
 ├── 03_Portraits/
-│   ├── _post-processing/  _CameraRaw0/
+│   ├── _Post-Processing/  _CameraRaw0/
 │   └── lights/{RAW,JPG}
 │
 └── 04_tests/{RAW,JPG}
 ```
 
-A scattered group gets the **minimum**: `_00info/`, `_post-processing/`, `00_Original/{RAW,JPG}`.
+A scattered group gets the **minimum**: `_00info/`, `_Post-Processing/`, `00_Original/{RAW,JPG}`.
 Scattered groups are stray and test frames; they get somewhere to put a note and somewhere to put
 an export, and nothing else.
 
@@ -171,13 +171,13 @@ apply in plan mode and under `--apply`, so the plan is what actually happens.
 In order:
 
 1. **At the shoot root, every `_` and `.` name is the owner's staging** — `_dangling/`,
-   `_post-processing/`, `_00info/`, `_diary/`, `_tmp/` — and so are `00info/` and `*diary/`.
+   `_post-processing_jpg/`, `_00info/`, `_diary/`, `_tmp/` — and so are `00info/` and `*diary/`.
    Never read, never moved. **The underscore keeps its old meaning at the root: it protects.**
    Below the root it means the opposite (rule 3), because down there it is work inside a block.
 2. **A `.` name at any depth** is the filesystem's — `.Trashes`, `.fseventsd`. Skipped, never
    parked.
 3. **A `_` name below the root** is hand-curated work sitting inside a block that is about to be
-   renumbered — `_CameraRaw0/`, `_post-processing/`, `_00info/`. **Parked under
+   renumbered — `_CameraRaw0/`, `_Post-Processing/`, `_00info/`. **Parked under
    `_dangling/<its original path>/`.** An underscore-less `post-processing*/` is parked too.
 4. **Inside an already-organized block** — one holding a `00_Original/` — photos come out of
    `00_Original/` **only**, and *everything else in that block is parked as well*:
@@ -206,28 +206,51 @@ block this run just wrote is ever swept — its scaffolding is empty on purpose.
 
 ### create-diary
 
-Frames come from the categories the owner has filed into — `01_Astro/lights/JPG`,
-`02_Landscape/lights/JPG`, `03_Portraits/lights/JPG` — **merged and re-sorted into one stream**,
-so a block worked across two categories still reads as one block. A block nobody has filed yet,
-which is **every block the moment `organize-photo-folders` finishes**, falls back to its
-`00_Original/JPG`, so the diary works on a folder that has only just been organized.
+**Two source directories, and the blocks are not among them:**
 
-`darks/` is calibration and never reaches the strip, and neither does `RAW/`, anywhere. Only
-groups reach the diary; scattered groups are reported by name and frame count and copied nowhere.
-A frame that must be in the strip belongs in `00info/`, which is copied whole.
+| source | what it holds |
+|---|---|
+| `_00info/` | the night's screenshots, sky charts, planning notes, phone frames |
+| `_post-processing_jpg/` | the finished exports `tag-photo` copied up out of the blocks |
 
-The diary is emptied and rebuilt on every run, so it always mirrors its sources exactly.
+Nothing inside a block is read — not `00_Original/`, not a category's `lights/`, not a block's own
+`_Post-Processing/`. The strip is what the owner has already chosen to keep, and a frame still
+sitting in a block has not been chosen yet. The way into the diary is to export it and let
+`tag-photo` collect it, or to drop it in `_00info/`.
+
+Both directories are walked to any depth. **JPEG and PNG only** — `_00info/` is mostly
+screenshots; a `.tif` is reported and left out, because a diary is for flicking through and those
+run to hundreds of megabytes.
+
+Everything is sorted into **one flat stream by capture time**: EXIF, then the timestamp in the
+filename, then `FileModifyDate`, so a screenshot named `2026-09-11 06.01.44.png` sits where it
+belongs instead of piling up at the end. Ties break on filename, and anything with no timestamp of
+any kind sorts last rather than disappearing.
+
+Each copy is named `d000010_`, `d000020_`, … **in front of the file's own name** — the number is
+the diary's ordering and the rest is the file as the owner named it. The gap of 10 is so a frame
+can be slipped in by hand between two of them.
+
+The diary is emptied and rebuilt on every run, so it always mirrors its two sources exactly. There
+is no undo and none is needed: every entry is a copy of a file still sitting in one of them.
+
+The directory is named **`_<shoot folder name>_diary/`** — `_2026_0911_camera_llm_diary/` — so it
+still says which shoot it belongs to once it has been copied or dragged somewhere else; a hundred
+folders all called `_diary` are indistinguishable the moment they leave home. A shoot that already
+has any `*diary/` keeps the name it has: the run never renames one out from under the owner.
+
+One source missing is a warning and the run continues on the other; both missing stops the run.
 
 ### tag-photo
 
-A block has up to four `_post-processing/` directories and **each is dated off its own frames**:
+A block has up to four `_Post-Processing/` directories and **each is dated off its own frames**:
 
 | directory | reference frames |
 |---|---|
-| `<block>/01_Astro/_post-processing/` | `01_Astro/lights/JPG` |
-| `<block>/02_Landscape/_post-processing/` | `02_Landscape/lights/JPG` |
-| `<block>/03_Portraits/_post-processing/` | `03_Portraits/lights/JPG` |
-| `<block>/_post-processing/` | `00_Original/JPG` |
+| `<block>/01_Astro/_Post-Processing/` | `01_Astro/lights/JPG` |
+| `<block>/02_Landscape/_Post-Processing/` | `02_Landscape/lights/JPG` |
+| `<block>/03_Portraits/_Post-Processing/` | `03_Portraits/lights/JPG` |
+| `<block>/_Post-Processing/` | `00_Original/JPG` |
 
 The reference is the **last frame by capture time** — the moment that run finished — and the
 directory's products are stamped with its GPS and time at +1 s, +2 s, … in **filename-length
@@ -247,7 +270,7 @@ time only.
 
 Scattered groups are skipped and reported: no settings, so no run to date against.
 
-Every stamped directory is then copied up into the shoot root's `_post-processing/`. That copy is
+Every stamped directory is then copied up into the shoot root's `_post-processing_jpg/`. That copy is
 **additive** — the root folder is hand-curated and nothing in it is ever deleted.
 
 Idempotent by construction: the time is always recomputed from the reference frame, never from the

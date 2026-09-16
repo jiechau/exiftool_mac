@@ -29,12 +29,21 @@ RAW_SUB = 'RAW'                         # NOTE the case. macOS would forgive 'ra
 JPG_SUB = 'JPG'                         # (ext4, and rsync over SMB) will not.
 LIGHTS = 'lights'
 DARKS = 'darks'
-POSTPROC = '_post-processing'           # a block's, a category's, and the shoot root's collector
+POSTPROC = '_Post-Processing'           # a block's and a category's collector. NOTE the case,
+                                        # for the RAW_SUB reason above: ext4 on the NAS is
+                                        # case-sensitive and will not forgive a lower-case one.
+POSTPROC_ROOT = '_post-processing_jpg'  # the shoot root's collector, beside _00info/ and _diary/.
+                                        # Deliberately NOT the block spelling: it sits one level
+                                        # up among the shoot's own directories, so it reads as one
+                                        # of those rather than as a block that lost its prefix.
 INFO_BLOCK = '_00info'                  # per block: notes about that block
-INFO_ROOT = '00info'                    # per shoot: screenshots, sky charts, planning notes
+INFO_ROOT = '_00info'                   # per shoot: screenshots, sky charts, planning notes.
+                                        # Underscore-less '00info' is the older spelling; it is
+                                        # still protected at the root (PROTECTED_ROOT below) so an
+                                        # un-migrated folder is never walked into, but the diary
+                                        # is built from this one.
 DANGLING = '_dangling'
-DIARY = '_diary'
-DIARY_GLOB = '*diary'
+DIARY_GLOB = '*diary'                   # matches both spellings; protected at the shoot root
 
 # The owner's filing categories. organize-photo-folders creates them empty and never reads them
 # back as a photo source; create-diary and tag-photo work off their lights/JPG.
@@ -96,7 +105,7 @@ JUNK_PREFIXES = ('._',)
 PROTECTED_PREFIXES = ('.', '_')
 # Protected WITHOUT a leading underscore, and only at the top level of a shoot folder. Deeper
 # down these mean nothing -- a nested 00info/ is just another directory full of photos.
-PROTECTED_ROOT = {INFO_ROOT}
+PROTECTED_ROOT = {INFO_ROOT, '00info'}
 PROTECTED_ROOT_GLOBS = (DIARY_GLOB,)
 
 
@@ -113,9 +122,20 @@ def is_junk(fn):
 
 
 def is_protected_root(name):
-    """Top-level-only protected names: 00info/ and *diary/ (which covers _diary/)."""
+    """Top-level-only protected names: _00info/ (and the older 00info/) and *diary/."""
     return name in PROTECTED_ROOT or any(
         fnmatch.fnmatch(name, g) for g in PROTECTED_ROOT_GLOBS)
+
+
+def diary_dir_name(folder):
+    """The diary directory for a shoot: _<shoot folder name>_diary.
+
+    Named after the folder rather than a bare _diary/ so the directory still says which shoot it
+    belongs to once it has been copied or dragged somewhere else -- a hundred folders all called
+    _diary are indistinguishable the moment they leave home. A shoot that already has any *diary/
+    keeps the name it has; this is what a new one is called.
+    """
+    return f"_{os.path.basename(os.path.abspath(folder))}_diary"
 
 
 def is_block(name):
@@ -350,7 +370,7 @@ def read_dates(exe, paths, fallback=False):
     """One exiftool call for a whole list -- never one call per file.
 
     Returns ({path: datetime}, [paths with no usable timestamp]). Camera frames are read from EXIF
-    alone. With fallback=True -- for 00info/ -- a file with no EXIF date falls back to the time in
+    alone. With fallback=True -- for _00info/ -- a file with no EXIF date falls back to the time in
     its filename, then to FileModifyDate, so screenshots sit where they belong in a strip instead
     of piling up at its end.
     """

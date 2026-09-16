@@ -261,8 +261,8 @@ It never calls `net use /delete`. That would remove a remembered mapping for the
 | skill | what it does |
 |---|---|
 | `organize-photo-folders` | reads EXIF, detects intervalometer runs, re-blocks the whole shoot folder into `<block>/00_Original/{RAW,JPG}` and scaffolds each block for the hand work that follows |
-| `create-diary` | rebuilds the shoot's `_diary/` contact sheet — everything in `00info/`, three frames per run, in capture order |
-| `tag-photo` | stamps each `_post-processing/` export with the GPS and capture time of the frames it was made from, then collects them at the shoot root |
+| `create-diary` | rebuilds the shoot's `_<folder>_diary/` contact sheet — every JPEG and PNG in `_00info/` and `_post-processing_jpg/`, in capture order |
+| `tag-photo` | stamps each `_Post-Processing/` export with the GPS and capture time of the frames it was made from, then collects them at the shoot root |
 
 **[`organize-photo-folders.md`](organize-photo-folders.md) is the specification** for all three — layout, grouping, naming, `_dangling/`. What follows here is the tour.
 
@@ -293,49 +293,49 @@ A bare name is only resolved after `camera_latest/it_exists.txt` is found — th
 ```
 2026_0907_camera_daw_bay/
   6I-0010/                              scattered-group spanning two bodies — the name stops early
-    _00info/  _post-processing/
+    _00info/  _Post-Processing/
     00_Original/{RAW,JPG}
   6I-0011-6dii-24mm-8s-f1.8-iso3200/    group — <prefix>-<nnnn>-<camera>-<focal>-<shutter>-<aperture>-<iso>
-    _00info/  _post-processing/
+    _00info/  _Post-Processing/
     00_Original/{RAW,JPG}               every frame in the block — the only thing organize fills
-    01_Astro/                           _post-processing/ _CameraRaw0/ _CameraRaw1/
+    01_Astro/                           _Post-Processing/ _CameraRaw0/ _CameraRaw1/
                                         lights/{RAW,JPG}  darks/{RAW,JPG}
-    02_Landscape/                       _post-processing/ lights/{RAW,JPG} darks/{RAW,JPG}
-    03_Portraits/                       _post-processing/ _CameraRaw0/ lights/{RAW,JPG}
+    02_Landscape/                       _Post-Processing/ lights/{RAW,JPG} darks/{RAW,JPG}
+    03_Portraits/                       _Post-Processing/ _CameraRaw0/ lights/{RAW,JPG}
     04_tests/{RAW,JPG}
   6I-0013-550d-18mm-15s-f3.5-iso1600/   a second body from the same night sits alongside
-  _diary/                               contact sheet, 3 frames per group (create-diary)
-  00info/                               screenshots, planning notes, weather/sky charts
+  _2026_0907_camera_daw_bay_diary/      contact sheet, built from the two directories below
+  _00info/                              screenshots, planning notes, weather/sky charts
   _dangling/                            work parked here on a re-organize, original path kept
-  _post-processing/                     hand-curated; tag-photo only ever adds to it
+  _post-processing_jpg/                 hand-curated; tag-photo only ever adds to it
 ```
 
 - A **group** is an intervalometer run: at least three consecutive frames that share camera, focal length, shutter, aperture and ISO *and* sit at a fixed interval. All five go in the name, and are true of every frame in it. A **scattered-group** is the test and framing shots between runs; its name carries only what every frame in it agrees on — the camera, then the focal length — and stops at the first field that differs, so `6I-0014-550d` is one body at mixed focal lengths and a bare `6I-0015` spans two bodies.
 - The prefix is the year's last digit plus a month letter (`1 A … 9 I, 10 J, 11 K, 12 L`): August 2026 is `6H`, September 2026 is `6I`. It comes from the shoot folder's own name, so one night keeps one prefix across midnight.
 - **`00_Original/` is the only directory `organize-photo-folders` fills.** The category trees are created empty and are yours to file into; nothing ever reads them back as a photo source. `RAW` and `JPG` are upper-case — macOS would forgive `raw`, the NAS will not.
-- **Re-running is normal**, and is how a shoot gets renumbered. An already-organized block is recognised by its `00_Original/` and re-read from there alone; *everything else in it* — a filed `01_Astro/lights/`, a `_CameraRaw0/`, a `_post-processing/` — is parked under `_dangling/` with its original path kept first, because the block's number is about to change and that path is the only record of where the work came from. Empty scaffolding from the previous run is removed rather than parked, so a second run over an untouched folder is a genuine no-op.
-- **A leading `_` (or `.`) protects a directory at the root**: `00info/`, `*diary/`, `_post-processing/` and `_dangling/` are yours and are never read or moved. Below the root a `_` name means the opposite — it is hand work inside a block that is about to be renumbered, so it gets parked.
+- **Re-running is normal**, and is how a shoot gets renumbered. An already-organized block is recognised by its `00_Original/` and re-read from there alone; *everything else in it* — a filed `01_Astro/lights/`, a `_CameraRaw0/`, a `_Post-Processing/` — is parked under `_dangling/` with its original path kept first, because the block's number is about to change and that path is the only record of where the work came from. Empty scaffolding from the previous run is removed rather than parked, so a second run over an untouched folder is a genuine no-op.
+- **A leading `_` (or `.`) protects a directory at the root**: `_00info/`, `*diary/`, `_post-processing_jpg/` and `_dangling/` are yours and are never read or moved. Below the root a `_` name means the opposite — it is hand work inside a block that is about to be renumbered, so it gets parked.
 - Originals are never renamed, never deleted, and their EXIF is never rewritten. All organization happens through directories.
 
 ### The diary
 
-`_diary/` is the night read as one ordered strip: everything in `00info/` and the first, middle and last frame of each group, numbered `d000010_`, `d000020_`, … in capture order, e.g. `d000030_6I-0011-6dii-24mm-8s-f1.8-iso3200_IMG_0013.JPG`.
+`_<shoot folder name>_diary/` is the night read as one ordered strip, numbered `d000010_`, `d000020_`, … in capture order in front of each file's own name, e.g. `d001000_6I-0035-6dii-24mm_IMG_0014.JPG`.
 
-Frames come from the categories you have filed a block into — `01_Astro/lights/JPG`, `02_Landscape/lights/JPG`, `03_Portraits/lights/JPG` — merged into one capture-time stream, so a block worked across two categories still reads as one block. A block you have not filed yet, which is every block the moment `organize-photo-folders` finishes, falls back to its `00_Original/JPG`. `darks/` never reaches the strip, and neither does `RAW/`.
+It is built from **two directories and nothing else**: `_00info/` — the screenshots, charts and phone frames — and `_post-processing_jpg/`, the finished exports `tag-photo` collected up out of the blocks. **The blocks themselves are not read**: not `00_Original/`, not a category's `lights/`, not a block's own `_Post-Processing/`. The strip is what you have already chosen to keep, and a frame still sitting in a block has not been chosen yet.
 
-**Scattered-groups are left out.** The test and framing shots are the fumbling before a run, not the night's story, so the diary reports each one by name and frame count and copies none of it. A test frame that does belong in the strip goes in `00info/` like anything else.
+Both are walked to any depth, and **JPEG and PNG only** — a `.tif` export is reported and left out, because a diary is for flicking through and those run to hundreds of megabytes. Sorting falls back from EXIF to the timestamp in the filename to the file's mtime, so a screenshot named `2026-09-11 06.01.44.png` lands where it belongs.
 
-It holds **copies only** and is emptied and refilled on every run, which is why there is no undo and nothing set aside. **If a photo must appear in the strip, put it in `00info/`** — one dropped straight into `_diary/` is gone on the next run.
+It holds **copies only** and is emptied and refilled on every run, which is why there is no undo and nothing set aside. **If a photo must appear in the strip, put it in `_00info/`** — one dropped straight into the diary is gone on the next run. Re-organizing or renumbering blocks changes nothing here.
 
 ### Tagging the exports
 
 A stacked TIF out of Sequator carries no GPS and whatever date the stacker felt like writing. `tag-photo` puts them back, from the frames the stack was made from.
 
-A block has up to four `_post-processing/` directories and **each is dated off its own frames**: `01_Astro/`'s off `01_Astro/lights/JPG`, `02_Landscape/`'s off its own, and the block's own off `00_Original/JPG`. The reference is the last frame by capture time — the moment that run finished — and the products get +1 s, +2 s, … in filename-length order, so `..._thor.jpg` lands before `..._thor_SequatorStacking30.tif`.
+A block has up to four `_Post-Processing/` directories and **each is dated off its own frames**: `01_Astro/`'s off `01_Astro/lights/JPG`, `02_Landscape/`'s off its own, and the block's own off `00_Original/JPG`. The reference is the last frame by capture time — the moment that run finished — and the products get +1 s, +2 s, … in filename-length order, so `..._thor.jpg` lands before `..._thor_SequatorStacking30.tif`.
 
 **Nothing is borrowed.** A category holding work with an empty `lights/JPG` has no run to date against, and no sibling category or other block fills the gap: the run stops and asks which photo to use, then takes it as `--reference '<block>/<category>=<path>'`. A file that is only a copy of an original frame is left completely alone — it already carries the camera's own GPS and true timestamp. A body with no GPS (the 550d) yields time only.
 
-Everything stamped is then copied up into the shoot root's `_post-processing/`. That copy is **additive**: the root folder is hand-curated and nothing in it is ever deleted.
+Everything stamped is then copied up into the shoot root's `_post-processing_jpg/`. That copy is **additive**: the root folder is hand-curated and nothing in it is ever deleted.
 
 Running it twice is safe — the time is always recomputed from the reference frame, never from the target's current tags, so the seconds cannot drift.
 
