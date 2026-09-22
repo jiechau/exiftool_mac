@@ -96,6 +96,12 @@ cp $SP/out3.png img/img3.png
 
 - **用 `<br/>` 換行，不要用 `\n`。** `htmlLabels: true` 之下 `\n` 不會斷行。
 - **`>` 要寫成 `&gt;`**，否則會被當成箭頭語法解析。`<` 同理用 `&lt;`。
+- **sequenceDiagram 裡的 `;` 是語句分隔符**，訊息文字出現半形分號會直接 parse error
+  （`Expecting 'SOLID_ARROW'…, got 'NEWLINE'`）。像 `Set-Cookie: session_id=…; Secure; HttpOnly`
+  這種要改成全形 `；` 或 `・`，不然圖根本產不出來。
+- **sequenceDiagram 的訊息／participant 文字不吃 `<b>`**，那裡沒有 htmlLabels，寫了會原樣印出
+  `<b>…</b>`。`<br/>` 在那裡是有效的。要強調就靠 `note over`、`rect` 分段或換句話寫。
+  （`<b>` 只在 flowchart 的節點文字裡有用。）
 - Windows 路徑裡的反斜線（`C:\Users\...`）在節點文字裡是安全的，不用跳脫。
 - `&nbsp;` 用來在 subgraph 標題裡塞空白，例如 `subgraph nas["DS918 &nbsp; 192.168.123.163"]`。
 - 節點裡可以放圖示：`N1["<img src='https://i.imgur.com/ecRBtpN.png'/>"]`。
