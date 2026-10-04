@@ -1,6 +1,6 @@
 ---
 name: organize-photo-folders
-description: Sort a shoot folder of astro photos into <YM>-<nnnn>-<camera>-<focal>-<shutter>-<aperture>-<iso>/00_Original/{RAW,JPG} by reading EXIF and detecting fixed-interval (intervalometer) runs, and scaffold each block with 01_Astro/ 02_Landscape/ 03_Portraits/ 04_tests/ for the hand work that follows. Walks the shoot root and every subdirectory at any depth - card dumps (100CANON/, DCIM/100MSDCF/), older hand-made trees, already-organized blocks - pools every photo into one capture-time stream, and deletes each source directory once it is empty. An already-organized block is re-read from its 00_Original/ only; everything else in it, and every directory whose name starts with _, is parked under _dangling/ with its path preserved, since the block around it is about to be renumbered. Runs on macOS and Windows 11. Takes the folder and a starting block number. Use when asked to organize, sort, or group a shoot folder such as "organize 2026_0907_camera_daw_bay 10".
+description: Sort a shoot folder of astro photos into <YM>-<nnnn>-<camera>-<focal>-<shutter>-<aperture>-<iso>/01_Astro/_00Original/lights/{RAW,JPG} by reading EXIF and detecting fixed-interval (intervalometer) runs, and scaffold each block's 01_Astro/ with _CameraAll _CameraRaw0 _CameraRaw1 _Post-Processing for the hand work that follows. Walks the shoot root and every subdirectory at any depth - card dumps (100CANON/, DCIM/100MSDCF/), older hand-made trees, already-organized blocks - pools every photo into one capture-time stream, and deletes each source directory once it is empty. An already-organized block is re-read from its pool only (_00Original/, or the older _00_Original/ and 00_Original/ spellings); everything else in it, and every directory whose name starts with _, is parked under _dangling/ with its path preserved, since the block around it is about to be renumbered. Runs on macOS and Windows 11. Takes the folder and a starting block number. Use when asked to organize, sort, or group a shoot folder such as "organize 2026_0907_camera_daw_bay 10".
 ---
 
 # Organize photo folders
@@ -66,12 +66,22 @@ Say these things, because they are what the owner is deciding on:
 
 ## Afterwards
 
-Every photo is in `<block>/00_Original/{RAW,JPG}` and every other directory in the block is empty
-and waiting. The owner files frames into `01_Astro/lights/`, `02_Landscape/lights/` and so on by
-hand; nothing here does that, and nothing here ever reads those back as a photo source.
+Every photo is in `<block>/01_Astro/_00Original/lights/{RAW,JPG}` and every other directory in
+the block is empty and waiting. The owner sorts frames out of the pool by hand; nothing here does
+that.
 
-`create-diary` and `tag-photo` both work on the result. Until frames are filed into a category,
-`create-diary` builds the strip from `00_Original/JPG`.
+**Only `01_Astro/` is scaffolded.** `02_Landscape/`, `03_Portraits/`, `04_tests/` and `darks/` are
+not created — they went unused shoot after shoot and left every folder full of empty directories.
+Make one by hand when a shoot needs it; a `_00Original/` inside it is read on the next run like
+any other pool, and anything else in it is parked to `_dangling/`.
+
+**A re-run pools `darks/` in with the lights** and files them as lights, since a dark frame's
+timestamp and settings match the lights around it. Say so when reading a plan back over a block
+that has darks filed.
+
+`create-diary` and `tag-photo` both work on the result. `create-diary` collects the `.JPG` and
+`*_q6.jpg` exports out of every block's `_Post-Processing/`, so a shoot's diary is only `_00info/`
+until something is exported.
 
 ## Testing a change
 

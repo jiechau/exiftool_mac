@@ -2,6 +2,26 @@ This file is an engineer's memo only.
 Do not reference or modify this file until you are explicitly told to do so.
 
 
+對 mac 來說
+. go.sh 0
+. go.sh 2 # 把 camera_latest 複製到遠端
+. go.sh cw # 把遠端 camera_working 複製回來
+
+對 windows rog 來說
+cdw
+go.bat cw # 把 camera_working 複製到遠端
+
+
+windows skill
+organize folder 100Canon_6dii # 100Canon_6dii 在 '本機拷貝' 下, 完成後再自己改名字成 2026_1003_camera_yongan_harbor
+tag photo 2026_1003_camera_yongan_harbor/6J-0032-6dii-14mm-8s-f2.8-iso1600_30p # 補上 gps (but not gps taken dateime) 及 photo taken datetime
+create diary 2026_1003_camera_yongan_harbor
+    create diary 做的事:
+    1. delete old diary delete _post_processing_jpg
+    2. 把 每一個 _Post_Processing 的 _q6 .JPG 收集. 沒有 gps 補上 tag photo skill
+    3. 收集 _00info
+    4. 把收集的排序 放在 _2026_1003_camera_yongan_harbor_diary
+
 
 RUN
 ===

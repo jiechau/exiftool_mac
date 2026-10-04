@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Re-block a shoot folder into <YM>-<nnnn>-<camera>-<focal>-<shutter>-<aperture>-<iso>/.
 
-The first step on a card dump. Every photo under the shoot folder, at any depth, is pooled into
-one capture-time stream and cut into blocks:
+The first step on a card dump. Every photo under the shoot folder, at any depth, is pooled, split
+by camera body, and each body's stream cut into blocks:
 
   set group        >= 3 consecutive frames sharing camera + focal + shutter + aperture + ISO,
                    shot at a fixed interval (an intervalometer run). Its name carries all five.
@@ -10,17 +10,31 @@ one capture-time stream and cut into blocks:
                    it agrees on -- the camera, then the focal length -- and stops at the first
                    field that differs.
 
-Each block gets a working tree (see camera_lib.FULL_TEMPLATE), and every one of its photos lands
-in 00_Original/{RAW,JPG}. That pool is the only thing this skill fills; 01_Astro/, 02_Landscape/,
-03_Portraits/ and 04_tests/ are created empty for the owner to file into by hand, and are never
-read back as a photo source.
+Blocks are cut per body because an interval belongs to one camera: two bodies shooting
+concurrently interleave frame by frame, and in a merged stream each body's frames break the
+other's run. The finished blocks are then numbered in time order, so the numbering still reads
+down the night.
 
-Re-running is safe and is the point: a block already organized is recognised by its 00_Original/,
-its photos come back out of there, and it is renumbered from scratch. Anything ELSE in an old
-block -- a filed 01_Astro/lights/, a _CameraRaw0/, a _post-processing/ -- is parked under
-_dangling/ with its original path intact first, because the block around it is about to be
-renumbered and the path is the only record of where the work came from. Empty scaffolding from
-the previous run is simply removed.
+Each block gets a working tree (see camera_lib.FULL_TEMPLATE), and every one of its photos lands
+in 01_Astro/_00Original/lights/{RAW,JPG}. That pool is the only thing this skill fills, and the
+template holds only what the owner actually files into on the night -- 02_Landscape/,
+03_Portraits/, 04_tests/, the darks/ and a per-block _00info/ are NOT created, because created
+empty they stayed empty.
+The owner makes one by hand when a shoot needs it, and a pool inside it is read like any other.
+
+Re-running is safe and is the point: a block already organized is recognised by the pool under it,
+its photos come back out of there, and it is renumbered from scratch. The pool is read wherever it
+sits and under any of its three spellings (camera_lib.ORIGINAL_ALIASES), so a folder still on the
+older flat 00_Original/ layout converts on its first re-run. Anything ELSE in an old block -- a
+_CameraRaw0/, a _CameraAll/, a filed _Post-Processing/, a 04_tests/ full of frames -- is parked
+under _dangling/ with its original path intact first, because the block around it is about to be
+renumbered and the path is the only record of where the work came from. Empty scaffolding from the
+previous run is simply removed.
+
+NOTE darks/ under a pool is pooled with the lights, by the owner's decision on 2026-09-25. A dark
+frame carries the same timestamp and settings as the lights around it, so it is re-blocked by time
+like any other frame and comes out filed as a light. Re-running on a block whose darks matter means
+filing them again afterwards.
 
 Never deletes a photo, never renames an original, never touches an original's EXIF.
 
@@ -41,11 +55,14 @@ from collections import OrderedDict
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '_shared'))
 from camera_lib import (                                            # noqa: E402
-    ORIGINAL, RAW_SUB, JPG_SUB, POSTPROC, DANGLING,
+    POOL, RAW_SUB, JPG_SUB, POSTPROC, DANGLING,
     RAW_EXTS, JPG_EXTS, PROTECTED_PREFIXES,
     FULL_TEMPLATE, MIN_TEMPLATE,
-    find_exiftool, is_junk, is_photo, is_protected_root, make_tree, resolve_folder,
+    find_exiftool, has_pool, is_junk, is_photo, is_pool_name, is_protected_root,
+    make_tree, resolve_folder, under_pool,
 )
+
+POOL_PARTS = POOL.split('/')            # ('01_Astro', '_00Original', 'lights')
 
 # Matched at any depth, and against a lower-cased name: the block collector is '_Post-Processing'
 # and the shoot root's is '_post-processing_jpg', and older folders still carry the all-lower-case
@@ -148,38 +165,55 @@ def scan(folder):
     --apply, so the plan is what actually happens:
 
       1. AT THE ROOT, every '_' and '.' name is the owner's staging -- _dangling/,
-         _post-processing/, _00info/, _diary/, _tmp/ -- and so are 00info/ and *diary/. Never
+         _post-processing_jpg/, _00info/, _diary/, _tmp/ -- and so are 00info/ and *diary/. Never
          read, never moved. The underscore keeps its old meaning here: it protects. Below the
-         root it means the opposite (rule 3), because down there it is work inside a block.
+         root it means the opposite (rule 4), because down there it is work inside a block.
       2. a '.' name anywhere is the filesystem's -- .Trashes, .fseventsd. Skipped, never parked.
-      3. a '_' name BELOW THE ROOT is hand-curated work sitting inside a block that is about to
-         be renumbered: _CameraRaw0/, _post-processing/, _00info/. Parked, path preserved.
-      4. inside an already-organized block -- one holding a 00_Original/ -- everything except
-         00_Original/ is parked too. 01_Astro/lights/ is the owner's filing of a block whose
-         number is about to change, and re-pooling it would silently undo that filing.
-      5. anything else is a card dump, an old hand-made tree, a stray folder: walked into.
+      3. a POOL, and the path down to one, is read. '_00Original' is itself a '_' name and would
+         fall to rule 4 otherwise, and 01_Astro/ would fall to rule 5 -- both are exempted, and
+         everything below a pool (lights/, darks/, and the flat RAW/ and JPG/ of the older
+         layout) is frames. This is the only thing re-read out of an organized block.
+      4. a '_' name BELOW THE ROOT is hand-curated work sitting inside a block that is about to
+         be renumbered: _CameraRaw0/, _CameraAll/, _Post-Processing/, _00info/. Parked, path
+         preserved.
+      5. inside an already-organized block -- one with a pool under it anywhere -- everything
+         that does not lead to a pool is parked too, whatever it is called. 02_Landscape/ holding
+         a filed _Post-Processing/, a 04_tests/ full of frames: that is the owner's filing of a
+         block whose number is about to change, and re-pooling it would silently undo it.
+      6. anything else is a card dump, an old hand-made tree, a stray folder: walked into.
     """
     park, drop, sources = [], [], []
     root_abs = os.path.abspath(folder)
     for dirpath, dirnames, filenames in os.walk(folder):
         at_root = os.path.abspath(dirpath) == root_abs
         rel = '' if at_root else os.path.relpath(dirpath, folder)
-        organized = os.path.isdir(os.path.join(dirpath, ORIGINAL))
+        in_pool = under_pool(rel)
+        # Never at the root: at the shoot root a pool exists as soon as ONE block is organized,
+        # and rule 5 would then park every un-organized card dump sitting beside it.
+        organized = not at_root and not in_pool and has_pool(dirpath)
         keep = []
         for d in sorted(dirnames):
             child = os.path.join(rel, d) if rel else d
+            full = os.path.join(dirpath, d)
             if at_root and (d.startswith(PROTECTED_PREFIXES) or is_protected_root(d)):
                 continue                                                        # 1
             if d.startswith('.'):
                 continue                                                        # 2
-            if d.startswith('_') or is_postproc(d):                             # 3
+            # A pool with nothing in it is not a photo source, it is last run's scaffolding --
+            # most often the emptied 00_Original/ of a block just converted to the new layout.
+            # Without the emptiness test the alias would make it a pool forever and it would sit
+            # there through every future run.
+            if (in_pool or is_pool_name(d) or has_pool(full)) and not tree_is_empty(full):  # 3
+                keep.append(d)
+                continue
+            if d.startswith('_') or is_postproc(d):                             # 4
                 pass
-            elif organized and d != ORIGINAL:                                   # 4
+            elif organized:                                                     # 5
                 pass
             else:
-                keep.append(d)                                                  # 5
+                keep.append(d)                                                  # 6
                 continue
-            (drop if tree_is_empty(os.path.join(dirpath, d)) else park).append(child)
+            (drop if tree_is_empty(full) else park).append(child)
         dirnames[:] = keep
         if not at_root and any(is_photo(f) for f in filenames):
             sources.append(rel)
@@ -282,20 +316,45 @@ def find_pairs(folder, subdirs=()):
     return pairs
 
 
-def prune_source_dirs(folder, subdirs=(), keep_roots=()):
+def is_or_above(rel, paths):
+    """rel is one of paths, or an ancestor of one."""
+    return any(p == rel or p.startswith(rel + os.sep) for p in paths)
+
+
+def prune_source_dirs(folder, subdirs=(), keep_roots=(), leaves=()):
     """Sweep the whole tree bottom-up and remove every directory left holding nothing but OS junk
     -- the dirs this run emptied, and any an earlier run left behind. Bottom-up means
-    DCIM/100MSDCF/ takes DCIM/ with it, and an old block goes once its 00_Original/ is gone.
+    DCIM/100MSDCF/ takes DCIM/ with it, and an old block goes once its pool is gone.
 
     keep_roots are the block directories this run just wrote. Their scaffolding is empty ON
-    PURPOSE -- 01_Astro/lights/RAW/ is there for the owner to file into -- so nothing under them
-    is ever swept, or the run would delete the tree it just created."""
+    PURPOSE -- 01_Astro/_00Original/lights/RAW/ is there for the owner to file into -- so it is
+    never swept, or the run would delete the tree it just created.
+
+    But a block name can be BOTH: a block the plan writes and a block the photos came out of.
+    Two scattered-groups one re-run apart are both '<prefix>-<nnnn>-6dii-14mm', so a renumber
+    lands a new block on an old block's name and its emptied pool then sits inside a keep_root
+    forever (2026_0925_camera_neihu_ccd_roof left a 6I-0098-6dii-14mm/00_Original behind exactly
+    this way). keep_roots is a blunt proxy for "what this run created"; the precise test is that
+    a directory the photos came OUT of was never scaffolding, because scaffolding is never a
+    source. So inside a keep_root a directory is swept only when it is a source dir or an
+    ancestor of one.
+
+    `leaves` is belt-and-braces and does not fire today: a destination leaf is always under
+    _00Original/, whose leading underscore makes protected_rel() skip it several lines above, so
+    the sweep cannot reach one however the source test comes out. It is kept because that is a
+    coincidence of the current spelling -- ORIGINAL_ALIASES already holds one pool name with no
+    underscore ('00_Original'), and if ORIGINAL were ever renamed to something like that, this
+    is the only thing that would stop the sweep deleting the empty lights/JPG of a re-used block
+    whose new frames are RAW-only."""
     removed, junked, kept, root_abs = [], [], [], os.path.abspath(folder)
     for dirpath, _, _ in os.walk(folder, topdown=False):
         if os.path.abspath(dirpath) == root_abs:
             continue
         rel = os.path.relpath(dirpath, folder)
-        if protected_rel(rel) or rel.split(os.sep)[0] in keep_roots:
+        if protected_rel(rel):
+            continue
+        if rel.split(os.sep)[0] in keep_roots and not (
+                is_or_above(rel, subdirs) and not is_or_above(rel, leaves)):
             continue
         entries = os.listdir(dirpath)
         if any(not is_junk(f) for f in entries):
@@ -407,9 +466,11 @@ def scattered_leaf(name, rows):
     """A scattered group's name carries only what EVERY frame in it agrees on.
 
     Camera first, then focal length, stopping at the first field that differs -- so a stretch shot
-    entirely on the 550d at mixed focal lengths is `6I-0014-550d`, and one that spans two bodies
-    is a bare `6I-0015`. Settings are never in the name: a scattered group has none to speak of,
-    which is why it is scattered."""
+    entirely on the 550d at mixed focal lengths is `6I-0014-550d`. Settings are never in the name:
+    a scattered group has none to speak of, which is why it is scattered.
+
+    Since blocks are cut per body, the camera is always uniform and always in the name; the
+    two-body branch stays because nothing else guarantees it, not because it is expected."""
     if len({r['model'] for r in rows}) != 1:
         return name
     leaf = f"{name}-{camera_slug(rows[0]['model'])}"
@@ -419,14 +480,29 @@ def scattered_leaf(name, rows):
 
 
 def build_plan(rows, prefix, start):
-    """Cut one time-ordered stream into blocks and number them <prefix>-<start>.., in that order.
+    """Cut the stream into blocks per body, then number them all <prefix>-<start>.. in time order.
 
-    There is no per-camera pass: two bodies shooting the same night interleave in real time, and
-    the block numbers follow the night, not the equipment. A body of its own still ends up in its
-    own blocks, because the model is part of the signature a set group holds constant."""
+    Grouping follows the equipment; numbering follows the night.
+
+    Each body is cut on its own, because an interval belongs to one camera. When two bodies shoot
+    concurrently their frames interleave in real time, and in a merged stream one body's frame
+    landing between two of the other's breaks a run that was never interrupted in reality: a
+    night of a 550d on a 10 s intervalometer alongside a 6dii firing by hand came out as 104
+    blocks, 36 of them a single frame, with half the night in scattered-groups. Cut per body it is
+    a handful of long runs, which is what actually happened.
+
+    The blocks are then sorted by when they start and numbered in that order, so the numbers still
+    read down the night rather than grouping all of one camera's work ahead of the other's.
+    """
+    blocks = []
+    for model in sorted({r['model'] for r in rows}):
+        mrows = [r for r in rows if r['model'] == model]     # time order is preserved by the filter
+        for run in split_runs(mrows):
+            blocks.append((mrows[run['a']:run['b'] + 1], run))
+    blocks.sort(key=lambda b: (b[0][0]['t'], b[0][0]['base']))
+
     plan = []
-    for k, run in enumerate(split_runs(rows)):
-        brows = rows[run['a']:run['b'] + 1]
+    for k, (brows, run) in enumerate(blocks):
         first = brows[0]
         name = f"{prefix}-{start + k:04d}"
         if run['kind'] == 'group':
@@ -451,9 +527,10 @@ def print_plan(plan, pairs):
         n = len(p['bases'])
         iv = f"{p['iv']:.2f}s" if p['iv'] else '-'
         print(f"{p['name']:<9} {p['kind']:<9} {n:>4} {iv:>7}  "
-              f"{p['t0']} -> {p['t1']}  {p['dest']}/{ORIGINAL}")
-        # A set group cannot be mixed -- the signature is a grouping key. A scattered one can be,
-        # and the name says so by leaving the field out; spell out what it left out.
+              f"{p['t0']} -> {p['t1']}  {p['dest']}/{POOL}")
+        # A set group cannot be mixed -- the signature is a grouping key. Blocks are cut per
+        # body, so a scattered one cannot span two either; a mixed focal length still shortens
+        # the name, and the note spells out what it left out.
         if p['kind'] == 'scattered' and len(p['models']) > 1:
             print(f"        -- spans {len(p['models'])} bodies {p['models']}, "
                   f"so the name carries no camera")
@@ -465,16 +542,25 @@ def print_plan(plan, pairs):
           f"{sum(len(p['bases']) for p in plan)} photos, "
           f"{sum(len(v) for v in pairs.values())} files")
     print(f"每個 block 都會建好工作目錄：group 給完整的 {len(FULL_TEMPLATE)} 層，"
-          f"scattered 給最小的 {len(MIN_TEMPLATE)} 層；照片一律進 {ORIGINAL}/{{{RAW_SUB},{JPG_SUB}}}。")
+          f"scattered 給最小的 {len(MIN_TEMPLATE)} 層；照片一律進 {POOL}/{{{RAW_SUB},{JPG_SUB}}}。")
+    print("02_Landscape/、03_Portraits/、04_tests/、darks/ 不再預先建立 —— 需要時自己開，"
+          "裡面的 _00Original/ 一樣會被讀。")
 
 
 # ---------------------------------------------------------------- apply
+
+def plan_leaves(plan):
+    """The RAW/ and JPG/ the plan writes into, folder-relative. One definition, because the sweep
+    must not remove them and the reporting must not count them as leftover source dirs."""
+    return {os.path.join(p['dest'], *POOL_PARTS, sub)
+            for p in plan for sub in (RAW_SUB, JPG_SUB)}
+
 
 def apply_plan(folder, plan, pairs, source_dirs=(), keep_source=False):
     moves = 0
     for p in plan:
         # The scaffolding comes first and in full, so a block looks the same whether or not it
-        # happened to hold a raw file: 00_Original/RAW/ exists even for a JPEG-only group.
+        # happened to hold a raw file: lights/RAW/ exists even for a JPEG-only group.
         make_tree(os.path.join(folder, p['dest']), p['kind'])
         for base in p['bases']:
             for ext, sub in ([(e, RAW_SUB) for e in RAW_EXTS]
@@ -482,7 +568,7 @@ def apply_plan(folder, plan, pairs, source_dirs=(), keep_source=False):
                 fn = pairs.get(base, {}).get(ext)
                 if not fn:
                     continue
-                dst = os.path.join(folder, p['dest'], ORIGINAL, sub, os.path.basename(fn))
+                dst = os.path.join(folder, p['dest'], *POOL_PARTS, sub, os.path.basename(fn))
                 src = os.path.join(folder, fn)
                 if os.path.abspath(src) == os.path.abspath(dst):
                     continue          # re-run: already where the plan wants it
@@ -493,7 +579,7 @@ def apply_plan(folder, plan, pairs, source_dirs=(), keep_source=False):
                 moves += 1
     keep_roots = {p['dest'] for p in plan}
     removed, junked, kept = ([], [], list(source_dirs)) if keep_source \
-        else prune_source_dirs(folder, source_dirs, keep_roots)
+        else prune_source_dirs(folder, source_dirs, keep_roots, plan_leaves(plan))
     return moves, removed, junked, kept
 
 
@@ -554,8 +640,7 @@ def main():
             folder, plan, pairs, source_dirs, args.keep_source)
         # A photo already in the block the plan wants is not "loose", and a block dir still
         # full of its own photos is not a source dir worth reporting as kept.
-        leaves = {os.path.abspath(os.path.join(folder, p['dest'], ORIGINAL, sub))
-                  for p in plan for sub in (RAW_SUB, JPG_SUB)}
+        leaves = {os.path.abspath(os.path.join(folder, r)) for r in plan_leaves(plan)}
         kept = [k for k in kept if os.path.abspath(os.path.join(folder, k)) not in leaves]
         left = 0
         for rel in ['.'] + source_dirs:

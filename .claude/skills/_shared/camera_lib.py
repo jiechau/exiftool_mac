@@ -24,19 +24,33 @@ import sys
 
 # ---------------------------------------------------------------- the block layout
 
-ORIGINAL = '00_Original'                # the untouched pool: every frame the block was cut from
 RAW_SUB = 'RAW'                         # NOTE the case. macOS would forgive 'raw', the NAS
 JPG_SUB = 'JPG'                         # (ext4, and rsync over SMB) will not.
 LIGHTS = 'lights'
 DARKS = 'darks'
-POSTPROC = '_Post-Processing'           # a block's and a category's collector. NOTE the case,
-                                        # for the RAW_SUB reason above: ext4 on the NAS is
-                                        # case-sensitive and will not forgive a lower-case one.
-POSTPROC_ROOT = '_post-processing_jpg'  # the shoot root's collector, beside _00info/ and _diary/.
-                                        # Deliberately NOT the block spelling: it sits one level
-                                        # up among the shoot's own directories, so it reads as one
-                                        # of those rather than as a block that lost its prefix.
-INFO_BLOCK = '_00info'                  # per block: notes about that block
+
+ORIGINAL = '_00Original'                # the untouched pool: every frame the block was cut from.
+                                        # It lives INSIDE a category, not at the block root --
+                                        # <block>/01_Astro/_00Original/lights/{RAW,JPG}.
+# Three spellings are read as a pool, one is written. '_00_Original' is the older hand-made
+# spelling, still on the drive in 2026_0907 and 2026_0916; '00_Original' is the flat block-root
+# pool this skill itself wrote until 2026-09-25. Both are read so a re-run on an un-migrated
+# folder finds its photos instead of parking every one of them under _dangling/.
+ORIGINAL_ALIASES = (ORIGINAL, '_00_Original', '00_Original')
+
+CATEGORY_DEFAULT = '01_Astro'           # the only category created at init; see the templates
+POOL = f'{CATEGORY_DEFAULT}/{ORIGINAL}/{LIGHTS}'    # where organize-photo-folders puts a photo
+CAMERA_ALL = '_CameraAll'               # every frame of the block as the camera rendered it
+
+POSTPROC = '_Post-Processing'           # a CATEGORY's collector. NOTE the case, for the RAW_SUB
+                                        # reason above: ext4 on the NAS is case-sensitive and
+                                        # will not forgive a lower-case one.
+POSTPROC_ROOT = '_post-processing_jpg'  # ONE per shoot, at the shoot root, beside _00info/ and
+                                        # the diary. From 2026-10-01 create-diary owns it: it is
+                                        # deleted and rebuilt on every diary run from the blocks'
+                                        # _Post-Processing/ directories, so nothing hand-placed in
+                                        # it survives. organize-photo-folders never makes one, and
+                                        # no block carries one.
 INFO_ROOT = '_00info'                   # per shoot: screenshots, sky charts, planning notes.
                                         # Underscore-less '00info' is the older spelling; it is
                                         # still protected at the root (PROTECTED_ROOT below) so an
@@ -44,46 +58,47 @@ INFO_ROOT = '_00info'                   # per shoot: screenshots, sky charts, pl
                                         # is built from this one.
 DANGLING = '_dangling'
 DIARY_GLOB = '*diary'                   # matches both spellings; protected at the shoot root
+DIARY_OLD = '_diary'                    # the bare spelling, before diary_dir_name() existed
 
-# The owner's filing categories. organize-photo-folders creates them empty and never reads them
-# back as a photo source; create-diary and tag-photo work off their lights/JPG.
+# The owner's filing categories. Only 01_Astro/ is created at init (see the templates); the other
+# two are recognised wherever the owner has made them by hand -- a 02_Landscape/_00Original/ is
+# read as a photo source like any other pool.
 CATEGORIES = ('01_Astro', '02_Landscape', '03_Portraits')
 TESTS = '04_tests'
 
 RAW_EXTS = ('CR2', 'CR3', 'NEF', 'ARW', 'DNG', 'RAF', 'ORF', 'PEF', 'RW2')
 JPG_EXTS = ('JPG', 'JPEG')
 
-# Every block gets this much. A scattered-group is stray and test frames -- it gets somewhere to
-# put a note and somewhere to put an export, and nothing else.
+# What a block is created with. Nothing here is speculative: a directory is in the template only
+# because the owner files into it on the night. 02_Landscape/, 03_Portraits/, 04_tests/ and every
+# darks/ used to be created empty alongside these and went unused shoot after shoot, so a finished
+# folder carried hundreds of empty directories that said nothing about the work in it. They are
+# not created any more -- the owner makes one by hand when a shoot actually needs it, and this
+# skill still READS any pool found inside one (ORIGINAL_ALIASES above).
+#
+# _post-processing_jpg/ is NOT among them, from 2026-09-25: there is one per SHOOT, at the shoot
+# root, and tag-photo is what creates it when it has something to copy up. A block's exports go in
+# its category's _Post-Processing/, so a per-block copy of the shoot's collector was a second name
+# for a place that already existed and was empty in every block on the drive.
+#
+# Nor is a per-block _00info/, from 2026-10-04, for the same reason the categories went: it was
+# created in every block and stayed empty in nearly all of them. Notes about a night go in the
+# shoot root's _00info/, which is the one the diary reads. A block-level one made by hand is a
+# '_' name below the root, so a re-run parks it like any other hand work.
+#
+# A scattered-group is stray and test frames: somewhere to put the frames and an export.
 MIN_TEMPLATE = (
-    INFO_BLOCK,
-    POSTPROC,
-    f'{ORIGINAL}/{RAW_SUB}',
-    f'{ORIGINAL}/{JPG_SUB}',
+    f'{POOL}/{RAW_SUB}',                        # 01_Astro/_00Original/lights/RAW
+    f'{POOL}/{JPG_SUB}',                        # 01_Astro/_00Original/lights/JPG
+    f'{CATEGORY_DEFAULT}/{POSTPROC}',           # 01_Astro/_Post-Processing
 )
 
-# A set group gets the full working tree. The shape differs per category on purpose: astro stacks
-# in two Camera Raw passes and needs darks, landscape needs darks but not the raw passes,
-# portraits needs one raw pass and no darks, and 04_tests/ is a dumping ground with no lights.
+# A set group is what actually gets stacked, so it also gets the three Camera Raw directories that
+# a stacking pass writes into.
 FULL_TEMPLATE = MIN_TEMPLATE + (
-    f'01_Astro/{POSTPROC}',
-    '01_Astro/_CameraRaw0',
-    '01_Astro/_CameraRaw1',
-    f'01_Astro/{LIGHTS}/{RAW_SUB}',
-    f'01_Astro/{LIGHTS}/{JPG_SUB}',
-    f'01_Astro/{DARKS}/{RAW_SUB}',
-    f'01_Astro/{DARKS}/{JPG_SUB}',
-    f'02_Landscape/{POSTPROC}',
-    f'02_Landscape/{LIGHTS}/{RAW_SUB}',
-    f'02_Landscape/{LIGHTS}/{JPG_SUB}',
-    f'02_Landscape/{DARKS}/{RAW_SUB}',
-    f'02_Landscape/{DARKS}/{JPG_SUB}',
-    f'03_Portraits/{POSTPROC}',
-    '03_Portraits/_CameraRaw0',
-    f'03_Portraits/{LIGHTS}/{RAW_SUB}',
-    f'03_Portraits/{LIGHTS}/{JPG_SUB}',
-    f'{TESTS}/{RAW_SUB}',
-    f'{TESTS}/{JPG_SUB}',
+    f'{CATEGORY_DEFAULT}/{CAMERA_ALL}',         # 01_Astro/_CameraAll
+    f'{CATEGORY_DEFAULT}/_CameraRaw0',
+    f'{CATEGORY_DEFAULT}/_CameraRaw1',
 )
 
 # A block directory: 6I-0035-550d-18mm-15s-f3.5-iso1600. Anything else -- a card dump, a
@@ -121,6 +136,35 @@ def is_junk(fn):
     return fn in JUNK_FILES or fn.startswith(JUNK_PREFIXES) or fn.startswith('.')
 
 
+def is_pool_name(name):
+    """A pool directory -- the untouched frames a block was cut from, under any of the three
+    spellings this repo has written. The pool is the ONE thing inside an organized block that is
+    read back as a photo source; everything else in the block is the owner's work."""
+    return name in ORIGINAL_ALIASES
+
+
+def under_pool(rel):
+    """True once any segment of a block-relative path is a pool directory. Everything below a
+    pool is frames -- lights/, darks/, or the flat RAW/ and JPG/ of the older layout -- so the
+    walk stops asking questions and just reads."""
+    return bool(rel) and any(is_pool_name(s) for s in rel.replace('\\', '/').split('/'))
+
+
+def has_pool(path):
+    """True if path IS a pool directory or holds one at any depth.
+
+    This is what 'already organized' means now that the pool sits inside a category: a block is
+    organized when something under it is a pool, and 01_Astro/ has to be walked into rather than
+    parked precisely because a pool is beneath it. Walks the subtree, so it is called on
+    directories, not in an inner loop over files."""
+    if is_pool_name(os.path.basename(os.path.normpath(path))):
+        return True
+    for _, dirnames, _ in os.walk(path):
+        if any(is_pool_name(d) for d in dirnames):
+            return True
+    return False
+
+
 def is_protected_root(name):
     """Top-level-only protected names: _00info/ (and the older 00info/) and *diary/."""
     return name in PROTECTED_ROOT or any(
@@ -132,8 +176,8 @@ def diary_dir_name(folder):
 
     Named after the folder rather than a bare _diary/ so the directory still says which shoot it
     belongs to once it has been copied or dragged somewhere else -- a hundred folders all called
-    _diary are indistinguishable the moment they leave home. A shoot that already has any *diary/
-    keeps the name it has; this is what a new one is called.
+    _diary are indistinguishable the moment they leave home. create-diary deletes a bare _diary/
+    (DIARY_OLD) and writes this one in its place.
     """
     return f"_{os.path.basename(os.path.abspath(folder))}_diary"
 
@@ -161,37 +205,68 @@ def block_dirs(folder):
     return out
 
 
-def category_lights_jpg(block_dir):
-    """Every <category>/lights/JPG under a block that actually holds JPEGs, in category order.
+def pool_jpg_dir(block_dir, cat=None):
+    """Where a category's untouched JPEGs sit, or None. Four shapes are recognised, newest first:
 
-    Empty right after organize-photo-folders runs -- everything is still in 00_Original/ until the
-    owner files it. Callers fall back to original_jpg() when this comes back empty."""
-    out = []
-    for cat in CATEGORIES:
-        d = os.path.join(block_dir, cat, LIGHTS, JPG_SUB)
-        if not os.path.isdir(d):
-            continue
-        files = sorted(f for f in os.listdir(d)
-                       if is_jpg(f) and not is_junk(f) and os.path.isfile(os.path.join(d, f)))
-        if files:
-            out.append((cat, d, files))
-    return out
+        <cat>/_00Original/lights/JPG   the current layout
+        <cat>/_00Original/JPG          a pool with no lights/darks split
+        <cat>/lights/JPG               before the pool directory existed
+        <block>/00_Original/JPG        the flat block-root pool
+
+    cat=None means the block's own frames: the categories are tried in order, then the block root.
+    Existence only -- a caller that needs the filenames lists it, so an empty pool still resolves
+    and the caller can say so."""
+    bases = ([os.path.join(block_dir, cat)] if cat
+             else [os.path.join(block_dir, c) for c in CATEGORIES] + [block_dir])
+    for base in bases:
+        for alias in ORIGINAL_ALIASES:
+            for tail in ((LIGHTS, JPG_SUB), (JPG_SUB,)):
+                d = os.path.join(base, alias, *tail)
+                if os.path.isdir(d):
+                    return d
+        d = os.path.join(base, LIGHTS, JPG_SUB)
+        if os.path.isdir(d):
+            return d
+    return None
 
 
-def original_jpg(block_dir):
-    """(dir, files) for a block's 00_Original/JPG, or (dir, []) -- the fall-back frame source."""
-    d = os.path.join(block_dir, ORIGINAL, JPG_SUB)
-    if not os.path.isdir(d):
-        return d, []
+def pool_jpg(block_dir, cat=None):
+    """(dir, files) for pool_jpg_dir(), or (None, []) when the block has no pool at all."""
+    d = pool_jpg_dir(block_dir, cat)
+    if d is None:
+        return None, []
     return d, sorted(f for f in os.listdir(d)
                      if is_jpg(f) and not is_junk(f) and os.path.isfile(os.path.join(d, f)))
 
 
+def postproc_dirs(block_dir):
+    """Every _Post-Processing/ in a block, as [(dir, category or None)], in path order.
+
+    A block can hold several: one per category (01_Astro/_Post-Processing/, 02_Landscape/...) and
+    the block's own at its root, the "main" one. The category is the first path segment when that
+    is one of CATEGORIES, so a _Post-Processing/ filed deeper inside a category still belongs to it;
+    None means the main one, or one somewhere that is not under a category. The name is matched
+    without regard to case, for the older hand-made _post-processing/. Pools, _dangling/ and
+    dot-directories are never walked into.
+    """
+    out = []
+    for root, dirs, _ in os.walk(block_dir):
+        dirs[:] = sorted(d for d in dirs
+                         if not d.startswith('.') and d != DANGLING and not is_pool_name(d))
+        for d in dirs:
+            if d.lower() == POSTPROC.lower():
+                rel = os.path.relpath(os.path.join(root, d), block_dir).replace('\\', '/')
+                first = rel.split('/')[0]
+                out.append((os.path.join(root, d),
+                            first if first in CATEGORIES and '/' in rel else None))
+    return out
+
+
 def has_old_layout(block_dir):
-    """The pre-00_Original layout: a bare lights/jpg/ (or an even older jpg/) and no 00_Original/.
+    """A block with no pool in any recognised spelling: a bare lights/jpg/, or an even older jpg/.
 
     Reported, never read. A folder in that shape wants re-organizing, not a diary built round it."""
-    if os.path.isdir(os.path.join(block_dir, ORIGINAL)):
+    if pool_jpg_dir(block_dir) is not None:
         return False
     return (os.path.isdir(os.path.join(block_dir, LIGHTS, 'jpg'))
             or os.path.isdir(os.path.join(block_dir, 'jpg')))
@@ -364,6 +439,37 @@ def date_from_name(fn):
         return datetime.datetime(*(int(g) for g in m.groups()))
     except ValueError:
         return None
+
+
+def read_geo_time(exe, paths):
+    """What tag-photo and create-diary mean by "tagged": {path: (DateTimeOriginal, has_gps)}.
+
+    One exiftool call for the whole list. DateTimeOriginal is the photo-taken time and the only
+    date that counts -- a stacker's ModifyDate or CreateDate is not when anything was shot. GPS
+    counts when both latitude and longitude are there. A path exiftool cannot read at all comes
+    back (None, False): untagged, which is the truth as far as anything downstream can tell.
+    """
+    if not paths:
+        return {}
+    out = subprocess.run(
+        [exe, '-q', '-T', '-directory', '-filename', '-DateTimeOriginal',
+         '-GPSLatitude', '-GPSLongitude', '-@', '-'],
+        input='\n'.join(paths), capture_output=True, text=True)
+    tags = {}
+    for line in out.stdout.splitlines():
+        f = line.split('\t')
+        if len(f) < 5:
+            continue
+        tags[os.path.normpath(os.path.join(f[0], f[1]))] = f[2:5]
+    res = {}
+    for p in paths:
+        t = tags.get(os.path.normpath(p))
+        if not t:
+            res[p] = (None, False)
+            continue
+        res[p] = (parse_stamp(t[0]),
+                  all(v.strip() not in ('', '-') for v in t[1:3]))
+    return res
 
 
 def read_dates(exe, paths, fallback=False):

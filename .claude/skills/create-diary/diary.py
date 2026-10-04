@@ -1,29 +1,27 @@
 #!/usr/bin/env python3
-"""Build <folder>/_<folder>_diary/: every photo in _00info/ and _post-processing_jpg/, by time.
+"""Rebuild <folder>/_post-processing_jpg/ and <folder>/_<folder>_diary/ from scratch.
 
-Two source directories and nothing else. The blocks are not read -- not their 00_Original/, not
-their categories, not their own _Post-Processing/. What belongs in the strip is what the owner has
-already chosen to keep: the night's screenshots and notes in _00info/, and the finished exports
-that tag-photo collected at the shoot root in _post-processing_jpg/. A frame still sitting in a
-block has not been chosen yet, and a frame that should appear belongs in one of those two folders.
+Every run, in this order:
 
-That is the whole rule, and it is why this script no longer knows what a group is, which category
-a frame was filed into, or which three frames of a run to pick.
+  1. DELETE <folder>/_diary/ (the old spelling), <folder>/_<folder>_diary/ and
+     <folder>/_post-processing_jpg/. All three are copies and all three are rebuilt below, so a
+     first run and a tenth run end in the same place.
+  2. COLLECT from every _Post-Processing/ in every block (camera_lib.postproc_dirs()) the files
+     meant for looking at: a camera-style upper-case .JPG, or a *_q6.jpg export. Nothing else --
+     not .psd/.tif/.xmp/raw, and not the full-size *_q12.jpg.
+  3. CHECK those JPEGs carry GPS and DateTimeOriginal. A group holding one that does not is run
+     through tag-photo first (tag.plan_block / apply_block), so the copies carry the tags.
+  4. COPY them flat into <folder>/_post-processing_jpg/.
+  5. SORT everything under _00info/ plus everything in _post-processing_jpg/ into one stream by
+     capture time, and number it d000010_, d000020_, ... in front of each file's own name.
+  6. WRITE that stream into <folder>/_<folder>_diary/.
 
-Both folders are walked to any depth, so a _00info/ that grows subfolders still works. Photos are
-JPEG and PNG -- _00info/ is mostly screenshots; a .tif export is reported and left out, because a
-diary is for flicking through and those run to hundreds of megabytes.
+Ordering is by capture time: EXIF first, then the timestamp in the filename, then
+FileModifyDate, so a screenshot named 2026-09-11 06.01.44.png sits where it belongs. Ties break
+on filename; anything with no timestamp at all sorts last. A file tag-photo is about to stamp is
+sorted by the time it is about to get, so the plan is what --apply writes.
 
-Ordering is one flat stream by capture time: EXIF first, then the timestamp in the filename, then
-FileModifyDate, so a screenshot named 2026-09-11 06.01.44.png sits where it belongs instead of
-piling up at the end. Ties break on filename. Each copy is named d000010_/d000020_/... in front of
-its original filename, nothing else added -- the number is the diary's own ordering and the rest is
-the file as the owner named it.
-
-The diary is REBUILT from scratch on every run: emptied first, then filled again from the two
-sources, so it always mirrors them exactly and never carries a frame from an older layout. There
-is no undo and none is needed -- every entry is a copy of a file still sitting in _00info/ or
-_post-processing_jpg/, so a rebuild puts it straight back.
+Nothing in a block is ever changed here except through tag-photo, whose rules are its own.
 
 The layout this reads is written down in organize-photo-folders.md at the repo root.
 
@@ -37,174 +35,202 @@ import shutil
 import sys
 import time
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '_shared'))
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(HERE, '..', '_shared'))
+sys.path.insert(0, os.path.join(HERE, '..', 'tag-photo'))
 from camera_lib import (                                            # noqa: E402
-    DIARY_GLOB, INFO_ROOT, POSTPROC_ROOT,
-    diary_dir_name, find_exiftool, is_junk, read_dates, resolve_folder,
+    DIARY_GLOB, DIARY_OLD, INFO_ROOT, POSTPROC_ROOT,
+    block_dirs, diary_dir_name, find_exiftool, is_junk, postproc_dirs, read_dates,
+    read_geo_time, resolve_folder,
 )
+import tag                                                          # noqa: E402
 
-SOURCES = (INFO_ROOT, POSTPROC_ROOT)        # the only two directories the diary is built from
-DIARY_EXTS = ('.JPG', '.JPEG', '.PNG')      # _00info/ is mostly screenshots, hence PNG
 STEP = 10                                   # gap between diary numbers, a reading convenience
 SEP = '_'                                   # d000010_<original filename>
 
 
-def find_diary(folder):
-    """The shoot folder's diary directory.
-
-    organize-photo-folders protects `*diary/` at the root, so whichever one is already there is
-    the diary and keeps the name it has -- a shoot is not renamed out from under the owner. A
-    shoot with none gets `_<folder name>_diary`, which is what the older shoots here are called.
-    """
-    hits = [n for n in sorted(os.listdir(folder))
-            if fnmatch.fnmatch(n, DIARY_GLOB) and os.path.isdir(os.path.join(folder, n))]
-    return hits[0] if hits else diary_dir_name(folder)
+def wanted(fn):
+    """A _Post-Processing/ file that belongs in the diary: a camera-style .JPG (the extension
+    upper-case, exactly), or a quality-6 export. *_q12.jpg is the full-size export and is left
+    out, as is every .psd .tif .xmp and raw file."""
+    return fn.endswith('.JPG') or fn.lower().endswith('_q6.jpg')
 
 
-def is_diary_photo(fn):
-    return fn.upper().endswith(DIARY_EXTS)
+def walk_files(root):
+    """Every non-junk file under root, at any depth, in path order."""
+    out = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = sorted(d for d in dirnames if not d.startswith('.'))
+        out += [os.path.join(dirpath, f) for f in sorted(filenames) if not is_junk(f)]
+    return out
 
 
-def collect(folder, diary):
-    """(photos, other, missing) across the two source directories.
+def collect_postproc(folder):
+    """(picked, clashes, skipped) from every block's _Post-Processing/ directories.
 
-    `photos` is every JPEG/PNG under them at any depth, `other` the files left behind and only
-    reported, `missing` the source directories that are not there at all. The diary itself is
-    skipped if it happens to sit inside a source -- it holds copies, and re-reading them would
-    double the strip on every run.
-    """
-    photos, other, missing = [], [], []
-    for src in SOURCES:
-        root = os.path.join(folder, src)
-        if not os.path.isdir(root):
-            missing.append(src)
-            continue
-        for dirpath, dirnames, filenames in os.walk(root):
-            dirnames[:] = sorted(d for d in dirnames
-                                 if not d.startswith('.')
-                                 and os.path.abspath(os.path.join(dirpath, d)) != diary)
-            for fn in sorted(filenames):
-                if is_junk(fn):
+    `picked` is [(src, block)], one per destination name. `clashes` is two blocks exporting the
+    same filename: the first is kept, the second reported -- it goes nowhere until one of them is
+    renamed. `skipped` counts what is there but not wanted (tif, psd, q12, ...)."""
+    picked, clashes, skipped, seen = [], [], 0, {}
+    for block in block_dirs(folder):
+        for ppdir, _ in postproc_dirs(os.path.join(folder, block)):
+            for src in walk_files(ppdir):
+                fn = os.path.basename(src)
+                if not wanted(fn):
+                    skipped += 1
                     continue
-                p = os.path.join(dirpath, fn)
-                rel = os.path.relpath(p, folder)
-                (photos if is_diary_photo(fn) else other).append((p, rel, src))
-    return photos, other, missing
+                if fn in seen:
+                    clashes.append((fn, seen[fn], block))
+                    continue
+                seen[fn] = block
+                picked.append((src, block))
+    return picked, clashes, skipped
 
 
-def build_plan(exe, photos):
-    """One flat stream, sorted by capture time, numbered d000010_/d000020_/...
+def plan_tagging(exe, folder, picked):
+    """Run tag-photo's planner on every block holding a picked JPEG that is missing a tag.
 
-    This is the whole diary, not a delta -- the run rebuilds it from exactly this list.
-    """
-    paths = [p for p, _, _ in photos]
+    Returns (plans, overrides, still_missing). overrides maps a path to the time tag-photo is
+    about to give it; still_missing is the picked files tag-photo will not fix (a copy of an
+    original on a body with no GPS, most often)."""
+    geo = read_geo_time(exe, [src for src, _ in picked])
+    need = sorted({blk for src, blk in picked if not all(geo[src])})
+    plans = [tag.plan_block(exe, folder, blk) for blk in need]
+    overrides = {os.path.normpath(w['path']): (w['t'], bool(w['gps_src']))
+                 for p in plans for g in p['dirs'] for w in g['writes']}
+    still = []
+    for src, _ in picked:
+        t, gps = overrides.get(os.path.normpath(src), geo[src])
+        if not (t and gps):
+            still.append(src)
+    return plans, overrides, still
+
+
+def build_stream(exe, info_files, picked, overrides):
+    """The diary: one flat stream, sorted by capture time, numbered d000010_/d000020_/..."""
+    entries = [dict(src=p, name=os.path.basename(p), source=INFO_ROOT) for p in info_files]
+    entries += [dict(src=s, name=os.path.basename(s), source=POSTPROC_ROOT) for s, _ in picked]
     # fallback=True: _00info/ screenshots carry no EXIF, only a timestamp in the filename.
-    dates, undated = read_dates(exe, paths, fallback=True)
-    for p in undated:
-        print(f"  warning: {os.path.basename(p)} has no timestamp of any kind "
-              f"(EXIF, filename or mtime), sorted last", file=sys.stderr)
-
-    plan = [dict(src=p, rel=rel, source=src, t=dates.get(p), name=os.path.basename(p))
-            for p, rel, src in photos]
-    # Undated entries sort last, by name, rather than disappearing from the sequence.
-    plan.sort(key=lambda e: (e['t'] is None, e['t'] or datetime.datetime.min, e['name']))
-    for i, e in enumerate(plan):
+    dates, _ = read_dates(exe, [e['src'] for e in entries], fallback=True)
+    for e in entries:
+        ov = overrides.get(os.path.normpath(e['src']))
+        e['t'] = ov[0] if ov else dates.get(e['src'])
+    entries.sort(key=lambda e: (e['t'] is None, e['t'] or datetime.datetime.min, e['name']))
+    for i, e in enumerate(entries):
         e['final'] = f"d{(i + 1) * STEP:06d}{SEP}{e['name']}"
-    return plan
-
-
-def current_diary(diary):
-    """What the diary holds right now -- all of which the run removes and writes again.
-
-    Every one of these is a copy: its original is in one of the two sources, and the rebuild puts
-    it back. Dot-files and subdirectories are left alone.
-    """
-    if not os.path.isdir(diary):
-        return []
-    return [fn for fn in sorted(os.listdir(diary))
-            if not is_junk(fn) and os.path.isfile(os.path.join(diary, fn))]
-
-
-def print_plan(plan, other, missing, existing, diary_name):
-    counts = {}
-    for e in plan:
-        counts[e['source']] = counts.get(e['source'], 0) + 1
-    print(f"{'SOURCE':<24} {'PHOTOS':>7}")
-    for src in SOURCES:
-        if src in missing:
-            print(f"{src:<24} {'--':>7}   not present")
-        else:
-            print(f"{src:<24} {counts.get(src, 0):>7}")
-
-    undated = [e for e in plan if e['t'] is None]
-    if undated:
-        print(f"\n{len(undated)} file(s) with no timestamp, placed last: "
-              f"{', '.join(e['name'] for e in undated[:5])}"
-              f"{' ...' if len(undated) > 5 else ''}")
-    if other:
-        print(f"\nnot a JPEG/PNG, left where they are ({len(other)}): "
-              f"{', '.join(rel for _, rel, _ in other[:8])}"
-              f"{' ...' if len(other) > 8 else ''}")
-    if existing:
-        print(f"\n{diary_name}/ is emptied first: {len(existing)} file(s), all of them copies "
-              f"this run writes again from {' and '.join(SOURCES)}")
-
-    print(f"\ndiary after this run — {len(plan)} frames:")
-    for e in plan:
-        when = f"{e['t']:%Y-%m-%d %H:%M:%S}" if e['t'] else '(no date)'
-        print(f"  {e['final']:<52}  {when}  <- {e['source']}")
-
-
-def apply_plan(diary, plan, existing):
-    os.makedirs(diary, exist_ok=True)
-
-    # 1. Empty the diary. Everything in it is a copy of a file still sitting in one of the two
-    #    sources, so there is nothing here to preserve -- step 2 writes the strip again.
-    for fn in existing:
-        os.remove(os.path.join(diary, fn))
-
-    # 2. Rebuild it.
-    written = []
-    for e in plan:
-        shutil.copy2(e['src'], os.path.join(diary, e['final']))  # sources are never modified
-        written.append(e['final'])
-    return written
+    return entries
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('folder')
     ap.add_argument('--exiftool', help='path to exiftool, when it is not on PATH')
-    ap.add_argument('--apply', action='store_true', help='write the diary (default: plan only)')
+    ap.add_argument('--apply', action='store_true', help='write everything (default: plan only)')
     args = ap.parse_args()
 
     exe, _ = find_exiftool(args.exiftool)
     folder = resolve_folder(args.folder)
     if not os.path.isdir(folder):
         sys.exit(f"folder not found: {folder}")
-
     t0 = time.time()
-    diary_name = find_diary(folder)
-    diary = os.path.join(folder, diary_name)
+    diary_name = diary_dir_name(folder)
+    ppjpg = os.path.join(folder, POSTPROC_ROOT)
 
-    photos, other, missing = collect(folder, os.path.abspath(diary))
-    if len(missing) == len(SOURCES):
-        sys.exit(f"neither {' nor '.join(SOURCES)} is in {folder}; the diary is built from those "
-                 f"two directories, so at least one must exist")
-    if not photos:
-        sys.exit(f"no JPEG or PNG in {' or '.join(s for s in SOURCES if s not in missing)} "
-                 f"-- nothing to build a diary from")
+    # 1. what is deleted
+    doomed = [d for d in (DIARY_OLD, diary_name, POSTPROC_ROOT)
+              if os.path.isdir(os.path.join(folder, d))]
+    others = [n for n in sorted(os.listdir(folder))
+              if fnmatch.fnmatch(n, DIARY_GLOB) and n not in (DIARY_OLD, diary_name)
+              and os.path.isdir(os.path.join(folder, n))]
 
-    plan = build_plan(exe, photos)
-    existing = current_diary(diary)
-    print_plan(plan, other, missing, existing, diary_name)
+    # 2. what is collected
+    picked, clashes, skipped = collect_postproc(folder)
+    info_dir = os.path.join(folder, INFO_ROOT)
+    info_files = walk_files(info_dir) if os.path.isdir(info_dir) else []
+    if not picked and not info_files:
+        sys.exit(f"nothing for a diary: no {INFO_ROOT}/ content and no .JPG or *_q6.jpg in any "
+                 f"block's _Post-Processing/")
 
-    if args.apply:
-        written = apply_plan(diary, plan, existing)
-        print(f"\nrebuilt {diary_name}/ from scratch: {len(written)} frames written, "
-              f"{len(existing)} removed first")
-    else:
-        print("\n(plan only -- re-run with --apply to rebuild the diary)")
+    # 3. what tag-photo has to fix first
+    plans, overrides, still = plan_tagging(exe, folder, picked)
+    unresolved = [(p['block'], rel, f) for p in plans for rel, f in tag.unresolved_of(p)]
+
+    # 5. the stream
+    stream = build_stream(exe, info_files, picked, overrides)
+
+    # ---- the plan
+    print("DELETE")
+    for d in doomed:
+        n = len(walk_files(os.path.join(folder, d)))
+        print(f"  {d}/   ({n} file(s))")
+    if not doomed:
+        print("  nothing -- none of them exists yet")
+    if os.path.isdir(ppjpg):
+        fresh = {os.path.basename(s) for s, _ in picked}
+        lost = [os.path.basename(p) for p in walk_files(ppjpg)
+                if os.path.basename(p) not in fresh]
+        if lost:
+            print(f"  !! {len(lost)} file(s) in {POSTPROC_ROOT}/ are not in any block's "
+                  f"_Post-Processing/ and will be GONE after this run:")
+            for f in lost:
+                print(f"       {f}")
+    for n in others:
+        print(f"  (left alone: {n}/ -- a diary under another name)")
+
+    print(f"\nTAG FIRST — {len(plans)} group(s) hold a picked JPEG missing GPS or taken time")
+    for p in plans:
+        tag.print_block(p)
+    for s in still:
+        print(f"  note: {os.path.relpath(s, folder)} will still lack GPS or taken time "
+              f"(tag-photo leaves copies of originals alone)")
+
+    print(f"\nCOPY into {POSTPROC_ROOT}/ — {len(picked)} file(s) "
+          f"({skipped} other file(s) in _Post-Processing/ left out: tif, psd, xmp, q12, raw ...)")
+    for s, blk in picked:
+        print(f"  {os.path.basename(s)}")
+    for fn, a, b in clashes:
+        print(f"  CLASH  {fn}: both {a} and {b} export this name -- only {a}'s is copied")
+
+    print(f"\n{diary_name}/ — {len(stream)} file(s): "
+          f"{sum(e['source'] == INFO_ROOT for e in stream)} from {INFO_ROOT}/, "
+          f"{sum(e['source'] == POSTPROC_ROOT for e in stream)} from {POSTPROC_ROOT}/")
+    for e in stream:
+        when = f"{e['t']:%Y-%m-%d %H:%M:%S}" if e['t'] else '(no date)'
+        print(f"  {e['final']:<60}  {when}")
+
+    if unresolved:
+        print(f"\nNEEDS A REFERENCE PHOTO — tag-photo cannot date {len(unresolved)} file(s):")
+        for blk, rel, f in unresolved:
+            print(f"  {blk}/{rel}/{f}")
+        sys.exit("\nrefusing to write. Ask which photo to date them from, run tag-photo on that "
+                 "group with --reference <path> --apply, then run create-diary again.")
+
+    if not args.apply:
+        print("\n(plan only -- re-run with --apply to tag, delete, copy and rebuild)")
+        print(f"elapsed: {time.time() - t0:.1f}s")
+        return
+
+    # ---- apply, in the order the docstring gives
+    tagged, failed = 0, []
+    for p in plans:                                     # 3. tag first, so the copies carry it
+        w, f = tag.apply_block(exe, p)
+        tagged += w
+        failed += f
+    for d in doomed:                                    # 1. delete
+        shutil.rmtree(os.path.join(folder, d))
+    os.makedirs(ppjpg)                                  # 4. copy
+    for s, _ in picked:
+        shutil.copy2(s, os.path.join(ppjpg, os.path.basename(s)))
+    diary = os.path.join(folder, diary_name)            # 6. the diary
+    os.makedirs(diary)
+    for e in stream:
+        src = (os.path.join(ppjpg, e['name']) if e['source'] == POSTPROC_ROOT else e['src'])
+        shutil.copy2(src, os.path.join(diary, e['final']))
+
+    print(f"\ntagged {tagged} file(s); deleted {', '.join(d + '/' for d in doomed) or 'nothing'}; "
+          f"copied {len(picked)} into {POSTPROC_ROOT}/; wrote {len(stream)} into {diary_name}/")
+    for f, err in failed:
+        print(f"  FAILED to tag {f}: {err}", file=sys.stderr)
     print(f"elapsed: {time.time() - t0:.1f}s")
 
 
