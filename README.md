@@ -261,7 +261,7 @@ It never calls `net use /delete`. That would remove a remembered mapping for the
 | skill | what it does |
 |---|---|
 | `organize-photo-folders` | reads EXIF, detects intervalometer runs, re-blocks the whole shoot folder into `<block>/01_Astro/_00Original/lights/{RAW,JPG}` and scaffolds each block for the hand work that follows |
-| `create-diary` | rebuilds `_post-processing_jpg/` from every block's `_Post-Processing/` (`.JPG` and `*_q6.jpg`, tagged first), then the `_<folder>_diary/` contact sheet — `_00info/` plus those, in capture order |
+| `create-diary` | rebuilds `_post-processing_jpg/` from every block's `_Post-Processing/` (`.JPG`, `*_q6.jpg` and `.png`, tagged first), then the `_<folder>_diary/` contact sheet — `_00info/` plus those, in capture order |
 | `tag-photo` | for one group, gives every `_Post-Processing/` file missing GPS or taken time the tags of a similarly-named sibling, or of the last frame in its pool |
 
 **[`organize-photo-folders.md`](organize-photo-folders.md) is the specification** for all three — layout, grouping, naming, `_dangling/`. What follows here is the tour.
@@ -320,7 +320,7 @@ A bare name is only resolved after `camera_latest/it_exists.txt` is found — th
 
 Every run starts by **deleting** `_diary/` (the old name), `_<folder>_diary/` and `_post-processing_jpg/`, then builds them again:
 
-1. Every **`.JPG`** (upper-case — a frame you pulled out) and **`*_q6.jpg`** export in every block's `_Post-Processing/` is picked. Not `.psd`, `.tif`, `.xmp`, raw, or the full-size `*_q12.jpg`.
+1. Every **`.JPG`** (upper-case — a frame you pulled out) and **`*_q6.jpg`** export, and every **`.png`** (either case), in every block's `_Post-Processing/` is picked. Not `.psd`, `.tif`, `.xmp`, raw, or the full-size `*_q12.jpg`.
 2. A group with a pick missing GPS or taken time goes through `tag-photo` first.
 3. The picks are copied flat into `_post-processing_jpg/`.
 4. Everything in `_00info/` plus everything in `_post-processing_jpg/` is sorted by capture time — EXIF, then the timestamp in the filename, then mtime, so a screenshot named `2026-09-11 06.01.44.png` lands where it belongs — and numbered into the diary.

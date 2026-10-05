@@ -1,6 +1,6 @@
 ---
 name: create-diary
-description: Rebuild a shoot folder's _post-processing_jpg/ and _<folder name>_diary/ from scratch. Deletes _diary/, _<folder>_diary/ and _post-processing_jpg/ first; collects every upper-case .JPG and *_q6.jpg from every block's _Post-Processing/ (no .psd .tif .xmp raw or *_q12.jpg); runs tag-photo on any group whose picks lack GPS or taken time; copies the picks into _post-processing_jpg/; then sorts everything in _00info/ plus _post-processing_jpg/ into one capture-time stream numbered d000010_, d000020_, ... in front of each file's own name. Use when asked to create or rebuild the diary for a shoot folder such as "create diary for 2026_0907_camera_daw_bay".
+description: Rebuild a shoot folder's _post-processing_jpg/ and _<folder name>_diary/ from scratch. Deletes _diary/, _<folder>_diary/ and _post-processing_jpg/ first; collects every upper-case .JPG, *_q6.jpg and .png from every block's _Post-Processing/ (no .psd .tif .xmp raw or *_q12.jpg); runs tag-photo on any group whose picks lack GPS or taken time; copies the picks into _post-processing_jpg/; then sorts everything in _00info/ plus _post-processing_jpg/ into one capture-time stream numbered d000010_, d000020_, ... in front of each file's own name. Use when asked to create or rebuild the diary for a shoot folder such as "create diary for 2026_0907_camera_daw_bay".
 ---
 
 # Create diary
@@ -35,8 +35,8 @@ python3 .claude/skills/create-diary/diary.py 2026_0907_camera_daw_bay --apply
 ## What a run does
 
 1. **Deletes** `_diary/`, `_<folder>_diary/` and `_post-processing_jpg/` at the shoot root.
-2. **Picks** every `.JPG` (upper-case extension) and `*_q6.jpg` in every block's
-   `_Post-Processing/`.
+2. **Picks** every `.JPG` (upper-case extension), `*_q6.jpg` and `.png` (either case) in every
+   block's `_Post-Processing/`.
 3. **Tags first**: any group with a pick missing GPS or taken time goes through `tag-photo`'s
    planner, and its plan is printed under `TAG FIRST`.
 4. **Copies** the picks flat into `_post-processing_jpg/`.

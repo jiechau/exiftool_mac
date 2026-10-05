@@ -247,8 +247,9 @@ Takes a shoot folder name, resolved under this machine's base (`$dest_camera_dir
    in `_post-processing_jpg/` that is not also in a block's `_Post-Processing/` is **gone** — the
    plan lists each such file under `!!` so it can be moved into a block first.
 2. **Collect** from every `_Post-Processing/` in every block the files meant for looking at: an
-   upper-case **`.JPG`** (a camera frame the owner pulled out) or a **`*_q6.jpg`** export. Not
-   `.psd`, `.tif`, `.xmp`, raw, and not the full-size `*_q12.jpg`.
+   upper-case **`.JPG`** (a camera frame the owner pulled out), a **`*_q6.jpg`** export, or a
+   **`.png`** in either case (a screen grab, e.g. a field-of-view diagram; added 2026-10-06). The
+   directory keeps its `_jpg` name all the same. Not `.psd`, `.tif`, `.xmp`, raw, and not the full-size `*_q12.jpg`.
 3. **Check** each of those carries GPS and `DateTimeOriginal`. A group holding one that does not is
    run through **`tag-photo` first** — the whole group, by its rules below — so the copies carry the
    tags. If tag-photo would need a reference photo, the diary stops and says which group.

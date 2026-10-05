@@ -7,9 +7,9 @@ Every run, in this order:
      <folder>/_post-processing_jpg/. All three are copies and all three are rebuilt below, so a
      first run and a tenth run end in the same place.
   2. COLLECT from every _Post-Processing/ in every block (camera_lib.postproc_dirs()) the files
-     meant for looking at: a camera-style upper-case .JPG, or a *_q6.jpg export. Nothing else --
-     not .psd/.tif/.xmp/raw, and not the full-size *_q12.jpg.
-  3. CHECK those JPEGs carry GPS and DateTimeOriginal. A group holding one that does not is run
+     meant for looking at: a camera-style upper-case .JPG, a *_q6.jpg export, or a .png (any
+     case). Nothing else -- not .psd/.tif/.xmp/raw, and not the full-size *_q12.jpg.
+  3. CHECK those picks carry GPS and DateTimeOriginal. A group holding one that does not is run
      through tag-photo first (tag.plan_block / apply_block), so the copies carry the tags.
   4. COPY them flat into <folder>/_post-processing_jpg/.
   5. SORT everything under _00info/ plus everything in _post-processing_jpg/ into one stream by
@@ -51,9 +51,11 @@ SEP = '_'                                   # d000010_<original filename>
 
 def wanted(fn):
     """A _Post-Processing/ file that belongs in the diary: a camera-style .JPG (the extension
-    upper-case, exactly), or a quality-6 export. *_q12.jpg is the full-size export and is left
-    out, as is every .psd .tif .xmp and raw file."""
-    return fn.endswith('.JPG') or fn.lower().endswith('_q6.jpg')
+    upper-case, exactly), a quality-6 export, or a .png in either case (a screen grab such as a
+    field-of-view diagram). *_q12.jpg is the full-size export and is left out, as is every .psd
+    .tif .xmp and raw file."""
+    low = fn.lower()
+    return fn.endswith('.JPG') or low.endswith('_q6.jpg') or low.endswith('.png')
 
 
 def walk_files(root):
@@ -88,7 +90,7 @@ def collect_postproc(folder):
 
 
 def plan_tagging(exe, folder, picked):
-    """Run tag-photo's planner on every block holding a picked JPEG that is missing a tag.
+    """Run tag-photo's planner on every block holding a picked file that is missing a tag.
 
     Returns (plans, overrides, still_missing). overrides maps a path to the time tag-photo is
     about to give it; still_missing is the picked files tag-photo will not fix (a copy of an
@@ -148,7 +150,7 @@ def main():
     info_dir = os.path.join(folder, INFO_ROOT)
     info_files = walk_files(info_dir) if os.path.isdir(info_dir) else []
     if not picked and not info_files:
-        sys.exit(f"nothing for a diary: no {INFO_ROOT}/ content and no .JPG or *_q6.jpg in any "
+        sys.exit(f"nothing for a diary: no {INFO_ROOT}/ content and no .JPG, *_q6.jpg or .png in any "
                  f"block's _Post-Processing/")
 
     # 3. what tag-photo has to fix first
@@ -177,7 +179,7 @@ def main():
     for n in others:
         print(f"  (left alone: {n}/ -- a diary under another name)")
 
-    print(f"\nTAG FIRST — {len(plans)} group(s) hold a picked JPEG missing GPS or taken time")
+    print(f"\nTAG FIRST — {len(plans)} group(s) hold a pick missing GPS or taken time")
     for p in plans:
         tag.print_block(p)
     for s in still:
